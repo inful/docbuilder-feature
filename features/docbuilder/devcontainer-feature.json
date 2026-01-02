@@ -1,6 +1,6 @@
 {
     "id": "docbuilder",
-    "version": "0.1.1",
+    "version": "0.2.0",
     "name": "DocBuilder and Hugo Extended",
     "documentationURL": "https://github.com/inful/docbuilder-feature",
     "description": "Installs docbuilder and hugo extended binaries.",
@@ -32,6 +32,11 @@
             ],
             "default": "0.154.1",
             "description": "Version of hugo (extended) to install."
+        },
+        "autoPreview": {
+            "type": "boolean",
+            "default": true,
+            "description": "Automatically start docbuilder preview server when container starts."
         },
         "httpProxy": {
             "type": "string",

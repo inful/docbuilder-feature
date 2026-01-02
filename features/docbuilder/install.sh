@@ -11,6 +11,7 @@ fi
 # Configuration
 DOCBUILDER_VERSION="${DOCBUILDERVERSION:-${docbuilderVersion:-0.1.46}}"
 HUGO_VERSION="${HUGOVERSION:-${hugoVersion:-0.154.1}}"
+AUTO_PREVIEW="${AUTOPREVIEW:-${autoPreview:-true}}"
 INSTALL_DIR="/usr/local/bin"
 
 # Proxy settings - from devcontainer-features.env or environment
@@ -246,6 +247,80 @@ install_hugo() {
     print_status "hugo installed successfully"
 }
 
+# Setup auto-preview on container start
+setup_auto_preview() {
+    if [ "$AUTO_PREVIEW" = "true" ]; then
+        print_info "Setting up auto-preview..."
+        
+        # Create startup script
+        local startup_script="/usr/local/share/docbuilder-preview.sh"
+        sudo -E tee "$startup_script" > /dev/null <<'EOF'
+#!/bin/bash
+# Auto-start docbuilder preview server
+
+# Wait a moment for container to fully initialize
+sleep 2
+
+# Find the workspace directory (typically /workspaces/*)
+WORKSPACE_DIR="/workspaces"
+if [ -d "$WORKSPACE_DIR" ]; then
+    cd "$WORKSPACE_DIR" || exit 1
+    
+    # Find first subdirectory if it exists
+    FIRST_DIR=$(find "$WORKSPACE_DIR" -mindepth 1 -maxdepth 1 -type d | head -n 1)
+    if [ -n "$FIRST_DIR" ]; then
+        cd "$FIRST_DIR" || exit 1
+    fi
+fi
+
+# Check if docbuilder is available
+if ! command -v docbuilder > /dev/null 2>&1; then
+    echo "docbuilder not found in PATH"
+    exit 1
+fi
+
+echo "Starting docbuilder preview server in $(pwd)..."
+docbuilder preview
+EOF
+        
+        sudo -E chmod +x "$startup_script"
+        
+        # Create systemd user service for auto-preview
+        local service_dir="/etc/systemd/user"
+        sudo -E mkdir -p "$service_dir"
+        
+        sudo -E tee "$service_dir/docbuilder-preview.service" > /dev/null <<EOF
+[Unit]
+Description=DocBuilder Preview Server
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=$startup_script
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
+EOF
+        
+        # Add to bashrc to start the service on shell start
+        local bashrc_snippet='\n# Auto-start docbuilder preview\nif [ -z "$DOCBUILDER_PREVIEW_STARTED" ]; then\n    export DOCBUILDER_PREVIEW_STARTED=1\n    if command -v docbuilder > /dev/null 2>&1 && [ -d "/workspaces" ]; then\n        (cd /workspaces/* 2>/dev/null && nohup docbuilder preview > /tmp/docbuilder-preview.log 2>&1 &)\n        echo "DocBuilder preview server started. Logs: /tmp/docbuilder-preview.log"\n    fi\nfi\n'
+        
+        # Add to /etc/bash.bashrc for all users
+        if ! grep -q "DOCBUILDER_PREVIEW_STARTED" /etc/bash.bashrc 2>/dev/null; then
+            echo -e "$bashrc_snippet" | sudo -E tee -a /etc/bash.bashrc > /dev/null
+        fi
+        
+        print_status "Auto-preview configured"
+        print_info "DocBuilder preview will start automatically when the container starts"
+    else
+        print_info "Auto-preview disabled"
+    fi
+}
+
 # Main installation process
 main() {
     echo "=========================================="
@@ -260,6 +335,9 @@ main() {
     echo ""
     
     install_hugo
+    echo ""
+    
+    setup_auto_preview
     echo ""
     
     echo "=========================================="
