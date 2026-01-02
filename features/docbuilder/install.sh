@@ -1,13 +1,19 @@
 #!/bin/bash
 set -e
 
+# Source the devcontainer-features.env file if it exists
+# This file contains the feature options passed from devcontainer.json
+if [ -f "$(dirname "$0")/devcontainer-features.env" ]; then
+    # shellcheck source=/dev/null
+    source "$(dirname "$0")/devcontainer-features.env"
+fi
+
 # Configuration
 DOCBUILDER_VERSION="${DOCBUILDERVERSION:-${docbuilderVersion:-0.1.46}}"
 HUGO_VERSION="${HUGOVERSION:-${hugoVersion:-0.154.1}}"
 INSTALL_DIR="/usr/local/bin"
 
 # Proxy settings - from devcontainer-features.env or environment
-# The wrapper script sources devcontainer-features.env and exports these variables
 HTTP_PROXY="${HTTPPROXY:-${httpProxy:-${http_proxy:-}}}"
 HTTPS_PROXY="${HTTPSPROXY:-${httpsProxy:-${https_proxy:-}}}"
 
