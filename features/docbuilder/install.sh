@@ -1,24 +1,18 @@
 #!/bin/bash
 set -e
 
-# Source feature configuration if it exists
-if [ -f "/tmp/dev-container-features/devcontainer-features.builtin.env" ]; then
-    # Source the environment file that devcontainers CLI provides
-    # shellcheck disable=SC1091
-    set -a
-    source "/tmp/dev-container-features/devcontainer-features.builtin.env" 2>/dev/null || true
-    set +a
-fi
-
-# Configuration
-DOCBUILDER_VERSION="${DOCBUILDERVERSION:-0.1.46}"
-HUGO_VERSION="${HUGOVERSION:-0.154.1}"
+# Configuration - use both camelCase env vars and fallbacks
+DOCBUILDER_VERSION="${DOCBUILDERVERSION:-${docbuilderVersion:-0.1.46}}"
+HUGO_VERSION="${HUGOVERSION:-${hugoVersion:-0.154.1}}"
 INSTALL_DIR="/usr/local/bin"
 
-# Proxy settings from feature options or environment
-# Feature options are passed as HTTPPROXY and HTTPSPROXY
-HTTP_PROXY="${HTTPPROXY:-${http_proxy:-}}"
-HTTPS_PROXY="${HTTPSPROXY:-${https_proxy:-}}"
+# Proxy settings - try all possible naming conventions
+# devcontainers converts options: httpProxy -> HTTPPROXY
+HTTP_PROXY="${HTTPPROXY:-${httpProxy:-${http_proxy:-}}}"
+HTTPS_PROXY="${HTTPSPROXY:-${httpsProxy:-${https_proxy:-}}}"
+
+# Export them for curl to use
+export HTTP_PROXY HTTPS_PROXY
 
 # Color codes for output
 RED='\033[0;31m'
@@ -67,10 +61,6 @@ check_install_dir() {
         print_info "sudo password will be required for installation to $INSTALL_DIR"
     fi
     print_status "Installation directory $INSTALL_DIR exists"
-    
-    # Debug: print environment variables
-    print_info "Debug - Environment variables:"
-    env | grep -E "PROXY|HTTP|HTTPS" | head -10 || true
 }
 
 # Download and install docbuilder
@@ -82,8 +72,7 @@ install_docbuilder() {
     
     print_info "Installing docbuilder v${DOCBUILDER_VERSION} (${arch})..."
     print_info "URL: $download_url"
-    print_info "Proxy settings - HTTP: ${HTTP_PROXY:-none} HTTPS: ${HTTPS_PROXY:-none}"
-    print_info "Proxy settings: http_proxy=${http_proxy:-none} https_proxy=${https_proxy:-none}"
+    print_info "Proxy settings - HTTP_PROXY='$HTTP_PROXY' HTTPS_PROXY='$HTTPS_PROXY'"
     
     # Download with retries and better error handling
     local max_attempts=3
@@ -163,7 +152,7 @@ install_hugo() {
     
     print_info "Installing hugo (extended) v${HUGO_VERSION} (${arch})..."
     print_info "URL: $download_url"
-    print_info "Proxy settings - HTTP: ${HTTP_PROXY:-none} HTTPS: ${HTTPS_PROXY:-none}"
+    print_info "Proxy settings - HTTP_PROXY='$HTTP_PROXY' HTTPS_PROXY='$HTTPS_PROXY'"
     
     # Download with retries and better error handling
     local max_attempts=3
@@ -235,11 +224,6 @@ install_hugo() {
 
 # Main installation process
 main() {
-    # Capture all environment at start for debugging
-    echo "DEBUG_ENV_START" >&2
-    env | grep -E "PROXY|HTTP" >&2 || echo "NO_PROXY_ENV_VARS_FOUND" >&2
-    echo "DEBUG_ENV_END" >&2
-    
     echo "=========================================="
     echo "DocBuilder and Hugo Extended Installer"
     echo "=========================================="
