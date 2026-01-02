@@ -95,15 +95,21 @@ install_docbuilder() {
     
     while [ $attempt -le $max_attempts ]; do
         print_info "Download attempt $attempt of $max_attempts..."
+        print_info "Environment: http_proxy='$http_proxy' https_proxy='$https_proxy' no_proxy='$NO_PROXY'"
         print_info "Curl command: curl $curl_opts \"$download_url\" -o \"$temp_dir/docbuilder.tar.gz\""
         # shellcheck disable=SC2086
-        if curl $curl_opts "$download_url" -o "$temp_dir/docbuilder.tar.gz" 2>"$temp_dir/curl_error.log"; then
+        if curl $curl_opts -v "$download_url" -o "$temp_dir/docbuilder.tar.gz" 2>"$temp_dir/curl_error.log"; then
             if [ -f "$temp_dir/docbuilder.tar.gz" ] && [ -s "$temp_dir/docbuilder.tar.gz" ]; then
                 print_status "Downloaded docbuilder"
                 break
+            else
+                print_error "Download succeeded but file is missing or empty"
+                print_error "File exists: $([ -f "$temp_dir/docbuilder.tar.gz" ] && echo yes || echo no)"
+                print_error "File size: $([ -f "$temp_dir/docbuilder.tar.gz" ] && stat -f%z "$temp_dir/docbuilder.tar.gz" 2>/dev/null || stat -c%s "$temp_dir/docbuilder.tar.gz" 2>/dev/null || echo unknown)"
             fi
         else
-            print_error "Curl failed with exit code $?"
+            local exit_code=$?
+            print_error "Curl failed with exit code $exit_code"
             if [ -f "$temp_dir/curl_error.log" ]; then
                 print_error "Curl error output:"
                 cat "$temp_dir/curl_error.log" >&2
@@ -176,15 +182,21 @@ install_hugo() {
     
     while [ $attempt -le $max_attempts ]; do
         print_info "Download attempt $attempt of $max_attempts..."
+        print_info "Environment: http_proxy='$http_proxy' https_proxy='$https_proxy' no_proxy='$NO_PROXY'"
         print_info "Curl command: curl $curl_opts \"$download_url\" -o \"$temp_dir/hugo.tar.gz\""
         # shellcheck disable=SC2086
-        if curl $curl_opts "$download_url" -o "$temp_dir/hugo.tar.gz" 2>"$temp_dir/curl_error.log"; then
+        if curl $curl_opts -v "$download_url" -o "$temp_dir/hugo.tar.gz" 2>"$temp_dir/curl_error.log"; then
             if [ -f "$temp_dir/hugo.tar.gz" ] && [ -s "$temp_dir/hugo.tar.gz" ]; then
                 print_status "Downloaded hugo"
                 break
+            else
+                print_error "Download succeeded but file is missing or empty"
+                print_error "File exists: $([ -f "$temp_dir/hugo.tar.gz" ] && echo yes || echo no)"
+                print_error "File size: $([ -f "$temp_dir/hugo.tar.gz" ] && stat -f%z "$temp_dir/hugo.tar.gz" 2>/dev/null || stat -c%s "$temp_dir/hugo.tar.gz" 2>/dev/null || echo unknown)"
             fi
         else
-            print_error "Curl failed with exit code $?"
+            local exit_code=$?
+            print_error "Curl failed with exit code $exit_code"
             if [ -f "$temp_dir/curl_error.log" ]; then
                 print_error "Curl error output:"
                 cat "$temp_dir/curl_error.log" >&2
