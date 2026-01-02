@@ -23,6 +23,11 @@ if [ -f "devcontainer-features.env" ]; then
     echo "WRAPPER: Successfully sourced devcontainer-features.env"
     echo "WRAPPER: HTTPPROXY after sourcing: $HTTPPROXY"
     echo "WRAPPER: HTTPSPROXY after sourcing: $HTTPSPROXY"
+    
+    # IMPORTANT: Export all sourced variables so they're available to the called script
+    export HTTPPROXY HTTPSPROXY DOCBUILDERVERSION HUGOVERSION
+    
+    echo "WRAPPER: Exported variables"
 else
     echo "WRAPPER: ERROR - devcontainer-features.env not found!"
     echo "WRAPPER: Files available:"
