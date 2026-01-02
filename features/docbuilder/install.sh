@@ -6,7 +6,8 @@ DOCBUILDER_VERSION="${DOCBUILDER_VERSION:-0.1.46}"
 HUGO_VERSION="${HUGO_VERSION:-0.154.1}"
 INSTALL_DIR="/usr/local/bin"
 
-# Proxy settings from feature options
+# Proxy settings from feature options or environment
+# Feature passes options as HTTPPROXY and HTTPSPROXY
 HTTP_PROXY="${HTTPPROXY:-${http_proxy:-}}"
 HTTPS_PROXY="${HTTPSPROXY:-${https_proxy:-}}"
 
@@ -68,6 +69,7 @@ install_docbuilder() {
     
     print_info "Installing docbuilder v${DOCBUILDER_VERSION} (${arch})..."
     print_info "URL: $download_url"
+    print_info "Proxy settings - HTTP: ${HTTP_PROXY:-none} HTTPS: ${HTTPS_PROXY:-none}"
     print_info "Proxy settings: http_proxy=${http_proxy:-none} https_proxy=${https_proxy:-none}"
     
     # Download with retries and better error handling
@@ -148,7 +150,7 @@ install_hugo() {
     
     print_info "Installing hugo (extended) v${HUGO_VERSION} (${arch})..."
     print_info "URL: $download_url"
-    print_info "Proxy settings: http_proxy=${http_proxy:-none} https_proxy=${https_proxy:-none}"
+    print_info "Proxy settings - HTTP: ${HTTP_PROXY:-none} HTTPS: ${HTTPS_PROXY:-none}"
     
     # Download with retries and better error handling
     local max_attempts=3
