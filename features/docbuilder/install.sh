@@ -79,9 +79,26 @@ install_docbuilder() {
     # Download with retries and better error handling
     local max_attempts=3
     local attempt=1
+    local curl_opts="-fSsL --connect-timeout 30 --max-time 120 --retry 2"
+    
+    # Add proxy settings if available
+    if [ -n "$http_proxy" ] || [ -n "$HTTP_PROXY" ]; then
+        local proxy="${http_proxy:-$HTTP_PROXY}"
+        curl_opts="$curl_opts -x $proxy"
+        print_info "Using HTTP proxy: $proxy"
+    fi
+    if [ -n "$https_proxy" ] || [ -n "$HTTPS_PROXY" ]; then
+        local proxy="${https_proxy:-$HTTPS_PROXY}"
+        # Only set https proxy if different from http proxy
+        if [ "$proxy" != "${http_proxy:-$HTTP_PROXY}" ]; then
+            curl_opts="$curl_opts -x $proxy"
+        fi
+    fi
+    
     while [ $attempt -le $max_attempts ]; do
         print_info "Download attempt $attempt of $max_attempts..."
-        if curl -fSsL --connect-timeout 10 --max-time 60 "$download_url" -o "$temp_dir/docbuilder.tar.gz" 2>&1 | tee /tmp/curl_err.log; then
+        # shellcheck disable=SC2086
+        if curl $curl_opts "$download_url" -o "$temp_dir/docbuilder.tar.gz" 2>&1 | tee /tmp/curl_err.log; then
             :
         fi
         if [ -f "$temp_dir/docbuilder.tar.gz" ] && [ -s "$temp_dir/docbuilder.tar.gz" ]; then
@@ -98,8 +115,7 @@ install_docbuilder() {
     if [ ! -f "$temp_dir/docbuilder.tar.gz" ] || [ ! -s "$temp_dir/docbuilder.tar.gz" ]; then
         print_error "Failed to download docbuilder from $download_url after $max_attempts attempts"
         [ -f /tmp/curl_err.log ] && cat /tmp/curl_err.log
-        print_info "Continuing without docbuilder - it can be installed manually later"
-        return 0
+        return 1
     fi
     
     # Extract
@@ -148,9 +164,26 @@ install_hugo() {
     # Download with retries and better error handling
     local max_attempts=3
     local attempt=1
+    local curl_opts="-fSsL --connect-timeout 30 --max-time 120 --retry 2"
+    
+    # Add proxy settings if available
+    if [ -n "$http_proxy" ] || [ -n "$HTTP_PROXY" ]; then
+        local proxy="${http_proxy:-$HTTP_PROXY}"
+        curl_opts="$curl_opts -x $proxy"
+        print_info "Using HTTP proxy: $proxy"
+    fi
+    if [ -n "$https_proxy" ] || [ -n "$HTTPS_PROXY" ]; then
+        local proxy="${https_proxy:-$HTTPS_PROXY}"
+        # Only set https proxy if different from http proxy
+        if [ "$proxy" != "${http_proxy:-$HTTP_PROXY}" ]; then
+            curl_opts="$curl_opts -x $proxy"
+        fi
+    fi
+    
     while [ $attempt -le $max_attempts ]; do
         print_info "Download attempt $attempt of $max_attempts..."
-        if curl -fSsL --connect-timeout 10 --max-time 60 "$download_url" -o "$temp_dir/hugo.tar.gz" 2>&1 | tee /tmp/curl_err.log; then
+        # shellcheck disable=SC2086
+        if curl $curl_opts "$download_url" -o "$temp_dir/hugo.tar.gz" 2>&1 | tee /tmp/curl_err.log; then
             :
         fi
         if [ -f "$temp_dir/hugo.tar.gz" ] && [ -s "$temp_dir/hugo.tar.gz" ]; then
@@ -167,8 +200,7 @@ install_hugo() {
     if [ ! -f "$temp_dir/hugo.tar.gz" ] || [ ! -s "$temp_dir/hugo.tar.gz" ]; then
         print_error "Failed to download hugo from $download_url after $max_attempts attempts"
         [ -f /tmp/curl_err.log ] && cat /tmp/curl_err.log
-        print_info "Continuing without hugo - it can be installed manually later"
-        return 0
+        return 1
     fi
     
     # Extract
