@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# Log what's available
+set | grep -i proxy || echo "No proxy in set output" >&2
+
 # Configuration
 DOCBUILDER_VERSION="${DOCBUILDER_VERSION:-0.1.46}"
 HUGO_VERSION="${HUGO_VERSION:-0.154.1}"
@@ -12,10 +15,10 @@ HTTP_PROXY="${HTTPPROXY:-${http_proxy:-}}"
 HTTPS_PROXY="${HTTPSPROXY:-${https_proxy:-}}"
 
 # Debug: log what we're getting
-echo "HTTPPROXY=${HTTPPROXY}" >&2
-echo "HTTP_PROXY=${HTTP_PROXY}" >&2
-echo "HTTPSPROXY=${HTTPSPROXY}" >&2
-echo "HTTPS_PROXY=${HTTPS_PROXY}" >&2
+echo "After assignment - HTTPPROXY=${HTTPPROXY}" >&2
+echo "After assignment - HTTP_PROXY=${HTTP_PROXY}" >&2
+echo "After assignment - HTTPSPROXY=${HTTPSPROXY}" >&2
+echo "After assignment - HTTPS_PROXY=${HTTPS_PROXY}" >&2
 
 # Color codes for output
 RED='\033[0;31m'
