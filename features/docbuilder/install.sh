@@ -12,6 +12,9 @@ fi
 DOCBUILDER_VERSION="${DOCBUILDERVERSION:-${docbuilderVersion:-0.1.46}}"
 HUGO_VERSION="${HUGOVERSION:-${hugoVersion:-0.154.1}}"
 AUTO_PREVIEW="${AUTOPREVIEW:-${autoPreview:-true}}"
+DOCS_DIR="${DOCSDIR:-${docsDir:-docs}}"
+PREVIEW_PORT="${PREVIEWPORT:-${previewPort:-1316}}"
+VERBOSE="${VERBOSE:-${verbose:-false}}"
 INSTALL_DIR="/usr/local/bin"
 
 # Proxy settings - from devcontainer-features.env or environment
@@ -254,31 +257,34 @@ setup_auto_preview() {
         
         # Create startup script
         local startup_script="/usr/local/share/docbuilder-preview.sh"
-        sudo -E tee "$startup_script" > /dev/null <<'EOF'
+        sudo -E tee "$startup_script" > /dev/null <<EOF
 #!/bin/bash
 # Auto-start docbuilder preview server
+
+# Configuration from feature options
+DOCS_DIR="${DOCS_DIR}"
+PREVIEW_PORT="${PREVIEW_PORT}"
+VERBOSE="${VERBOSE}"
 
 # Wait a moment for container to fully initialize
 sleep 2
 
 # Find the workspace directory (typically /workspaces/*)
 WORKSPACE_DIR="/workspaces"
-if [ -d "$WORKSPACE_DIR" ]; then
-    cd "$WORKSPACE_DIR" || exit 1
+if [ -d "\$WORKSPACE_DIR" ]; then
+    cd "\$WORKSPACE_DIR" || exit 1
     
-    # Find first subdirectory that contains a docs folder
-    for ws_dir in "$WORKSPACE_DIR"/*; do
-        if [ -d "$ws_dir/docs" ]; then
-            cd "$ws_dir" || exit 1
-            break
-        fi
-    done
+    # Find first subdirectory
+    FIRST_DIR=\$(find "\$WORKSPACE_DIR" -mindepth 1 -maxdepth 1 -type d | head -n 1)
+    if [ -n "\$FIRST_DIR" ]; then
+        cd "\$FIRST_DIR" || exit 1
+    fi
 fi
 
-# Check if we're in a directory with docs
-if [ ! -d "docs" ]; then
-    echo "No docs directory found, skipping docbuilder preview"
-    exit 0
+# Create docs directory if it doesn't exist
+if [ ! -d "\$DOCS_DIR" ]; then
+    echo "Creating \$DOCS_DIR directory..."
+    mkdir -p "\$DOCS_DIR"
 fi
 
 # Check if docbuilder is available
@@ -287,8 +293,15 @@ if ! command -v docbuilder > /dev/null 2>&1; then
     exit 1
 fi
 
-echo "Starting docbuilder preview server in $(pwd)..."
-docbuilder preview
+# Build command with options
+CMD="docbuilder preview --docs-dir \"\$DOCS_DIR\" --port \$PREVIEW_PORT"
+if [ "\$VERBOSE" = "true" ]; then
+    CMD="\$CMD --verbose"
+fi
+
+echo "Starting docbuilder preview server in \$(pwd)..."
+echo "Command: \$CMD"
+eval "\$CMD"
 EOF
         
         sudo -E chmod +x "$startup_script"
@@ -315,7 +328,7 @@ WantedBy=default.target
 EOF
         
         # Add to bashrc to start the service on shell start
-        local bashrc_snippet='\\n# Auto-start docbuilder preview\\nif [ -z "$DOCBUILDER_PREVIEW_STARTED" ]; then\\n    export DOCBUILDER_PREVIEW_STARTED=1\\n    if command -v docbuilder > /dev/null 2>&1 && [ -d "/workspaces" ]; then\\n        for ws_dir in /workspaces/*; do\\n            if [ -d "$ws_dir/docs" ]; then\\n                (cd "$ws_dir" && nohup docbuilder preview > /tmp/docbuilder-preview.log 2>&1 &)\\n                echo "DocBuilder preview server started in $ws_dir. Logs: /tmp/docbuilder-preview.log"\\n                break\\n            fi\\n        done\\n    fi\\nfi\\n'
+        local bashrc_snippet="\\n# Auto-start docbuilder preview\\nif [ -z \"\$DOCBUILDER_PREVIEW_STARTED\" ]; then\\n    export DOCBUILDER_PREVIEW_STARTED=1\\n    if command -v docbuilder > /dev/null 2>&1 && [ -d \"/workspaces\" ]; then\\n        for ws_dir in /workspaces/*; do\\n            if [ -d \"\$ws_dir\" ]; then\\n                cd \"\$ws_dir\" || continue\\n                DOCS_DIR=\"${DOCS_DIR}\"\\n                [ ! -d \"\$DOCS_DIR\" ] && mkdir -p \"\$DOCS_DIR\"\\n                CMD=\"docbuilder preview --docs-dir \\\"\$DOCS_DIR\\\" --port ${PREVIEW_PORT}\"\\n                [ \"${VERBOSE}\" = \"true\" ] && CMD=\"\$CMD --verbose\"\\n                (nohup \$CMD > /tmp/docbuilder-preview.log 2>&1 &)\\n                echo \"DocBuilder preview server started in \$ws_dir. Logs: /tmp/docbuilder-preview.log\"\\n                break\\n            fi\\n        done\\n    fi\\nfi\\n"
         
         # Add to /etc/bash.bashrc for all users
         if ! grep -q "DOCBUILDER_PREVIEW_STARTED" /etc/bash.bashrc 2>/dev/null; then
