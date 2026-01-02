@@ -151,6 +151,17 @@ install_go() {
 
 # Download and install docbuilder
 install_docbuilder() {
+    # Check if docbuilder is already installed with the correct version
+    if command -v docbuilder > /dev/null 2>&1; then
+        local installed_version=$(docbuilder --version 2>&1 | head -n1 | grep -oP 'v?\K[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
+        if [ "$installed_version" = "$DOCBUILDER_VERSION" ]; then
+            print_status "docbuilder v${DOCBUILDER_VERSION} is already installed"
+            return 0
+        else
+            print_info "docbuilder v${installed_version} is installed, but v${DOCBUILDER_VERSION} is requested. Updating..."
+        fi
+    fi
+    
     local arch=$(detect_architecture)
     local download_url="https://github.com/inful/docbuilder/releases/download/v${DOCBUILDER_VERSION}/docbuilder_linux_${arch}.tar.gz"
     local temp_dir=$(mktemp -d)
@@ -238,6 +249,22 @@ install_docbuilder() {
 
 # Download and install hugo (extended)
 install_hugo() {
+    # Check if hugo is already installed with the correct version
+    if command -v hugo > /dev/null 2>&1; then
+        local installed_version=$(hugo version 2>&1 | grep -oP 'v?\K[0-9]+\.[0-9]+\.[0-9]+' | head -n1 || echo "unknown")
+        if [ "$installed_version" = "$HUGO_VERSION" ]; then
+            # Also check if it's the extended version
+            if hugo version 2>&1 | grep -q "extended"; then
+                print_status "hugo (extended) v${HUGO_VERSION} is already installed"
+                return 0
+            else
+                print_info "hugo v${installed_version} is installed but not the extended version. Updating..."
+            fi
+        else
+            print_info "hugo v${installed_version} is installed, but v${HUGO_VERSION} is requested. Updating..."
+        fi
+    fi
+    
     local arch=$(detect_architecture)
     local download_url="https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-${arch}.tar.gz"
     local temp_dir=$(mktemp -d)
