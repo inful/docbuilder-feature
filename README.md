@@ -8,6 +8,7 @@ A DevContainer feature that installs [DocBuilder](https://github.com/inful/docbu
 - 📖 Installs **Hugo Extended** - A fast and flexible static site generator
 - 🏗️ Supports both **amd64** and **arm64** architectures
 - ⚙️ Configurable versions for both tools
+- 🚀 **No network required** - Binaries are bundled in the OCI image (no proxy issues!)
 
 ## Quick Start
 

@@ -42,6 +42,23 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Feature version: ${VERSION}"
       
+      - name: Get binary versions
+        id: binaries
+        run: |
+          DOCBUILDER_VERSION=$(jq -r '.options.docbuilderVersion.default' features/docbuilder/devcontainer-feature.json)
+          HUGO_VERSION=$(jq -r '.options.hugoVersion.default' features/docbuilder/devcontainer-feature.json)
+          echo "docbuilder=${DOCBUILDER_VERSION}" >> $GITHUB_OUTPUT
+          echo "hugo=${HUGO_VERSION}" >> $GITHUB_OUTPUT
+          echo "DocBuilder version: ${DOCBUILDER_VERSION}"
+          echo "Hugo version: ${HUGO_VERSION}"
+      
+      - name: Download binaries
+        run: |
+          chmod +x features/docbuilder/download-binaries.sh
+          features/docbuilder/download-binaries.sh \
+            ${{ steps.binaries.outputs.docbuilder }} \
+            ${{ steps.binaries.outputs.hugo }}
+      
       - name: Publish feature
         run: |
           devcontainer features publish \

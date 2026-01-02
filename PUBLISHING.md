@@ -2,6 +2,17 @@
 
 This guide explains how the DocBuilder feature is published to the GitHub Container Registry (ghcr.io).
 
+## How It Works
+
+This feature bundles the binaries directly in the OCI registry image to avoid network/proxy issues during container builds:
+
+1. CI downloads the binaries for both amd64 and arm64 architectures
+2. Binaries are placed in `features/docbuilder/bin/{amd64,arm64}/`
+3. The feature (including binaries) is published to the OCI registry
+4. During container build, binaries are copied from the feature to `/usr/local/bin`
+
+**Note:** Binaries are NOT committed to git - they are downloaded by CI before publishing.
+
 ## Automated Publishing
 
 The feature is automatically published to `ghcr.io/inful/docbuilder-feature/docbuilder` when:
@@ -20,12 +31,26 @@ npm install -g @devcontainers/cli
 # Authenticate with GitHub Container Registry
 echo $GITHUB_TOKEN | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
 
-# Publish the feature
+# Download the binaries first
+cd features/docbuilder
+chmod +x download-binaries.sh
+./download-binaries.sh 0.1.46 0.154.1  # Use desired versions
+cd ../..
+
+# Publish the feature (includes the downloaded binaries)
 devcontainer features publish \
   --registry ghcr.io \
   --namespace inful \
   ./features/docbuilder
 ```
+
+## Updating Binary Versions
+
+To update the default binary versions:
+
+1. Update the `default` values in `features/docbuilder/devcontainer-feature.json`
+2. Test locally by running `./features/docbuilder/download-binaries.sh`
+3. Commit and push - CI will automatically download the new versions and publish
 
 ## Using the Published Feature
 

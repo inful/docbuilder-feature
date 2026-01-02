@@ -3,11 +3,11 @@
     "features": {
         "ghcr.io/inful/docbuilder-feature/docbuilder:latest": {
             "httpProxy": "${localEnv:HTTP_PROXY}",
-            "httpsProxy": "${localEnv:HTTPS_PROXY}",
+            "httpsProxy": "${localEnv:HTTP_PROXY}",
             "noProxy": "${localEnv:NO_PROXY}"
         }
     },
-    "remoteEnv": {
+    "containerEnv": {
         "http_proxy": "${localEnv:HTTP_PROXY}",
         "https_proxy": "${localEnv:HTTP_PROXY}",
         "HTTP_PROXY": "${localEnv:HTTP_PROXY}",
