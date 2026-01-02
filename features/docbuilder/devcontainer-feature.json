@@ -1,6 +1,6 @@
 {
     "id": "docbuilder",
-    "version": "0.3.4",
+    "version": "0.3.5",
     "name": "DocBuilder and Hugo Extended",
     "documentationURL": "https://github.com/inful/docbuilder-feature",
     "description": "Installs docbuilder and hugo extended binaries.",
@@ -73,25 +73,6 @@
         "vscode": {
             "settings": {},
             "extensions": []
-        }
-    },
-    "forwardPorts": [1316, 1317, 1318, 1319],
-    "portsAttributes": {
-        "1316": {
-            "label": "DocBuilder Preview",
-            "onAutoForward": "notify"
-        },
-        "1317": {
-            "label": "DocBuilder Webhooks",
-            "onAutoForward": "silent"
-        },
-        "1318": {
-            "label": "DocBuilder Admin",
-            "onAutoForward": "silent"
-        },
-        "1319": {
-            "label": "DocBuilder LiveReload",
-            "onAutoForward": "silent"
         }
     }
 }
