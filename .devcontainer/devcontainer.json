@@ -1,7 +1,7 @@
 {
     "image": "mcr.microsoft.com/devcontainers/javascript-node:3-22",
     "features": {
-        "./features/docbuilder": {}
+        "ghcr.io/inful/docbuilder-feature/docbuilder:latest": {}
     },
     "remoteEnv": {
         "http_proxy": "${localEnv:HTTP_PROXY}",
