@@ -1,0 +1,46 @@
+name: Publish Feature to Registry
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'features/docbuilder/**'
+      - '.github/workflows/publish-feature.yml'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Dev Containers CLI
+        run: npm install -g @devcontainers/cli
+      
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Get feature version
+        id: version
+        run: |
+          VERSION=$(jq -r '.version' features/docbuilder/devcontainer-feature.json)
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Feature version: ${VERSION}"
+      
+      - name: Publish feature
+        run: |
+          devcontainer features publish \
+            --registry ghcr.io \
+            --namespace ${{ github.repository_owner }} \
+            --log-level debug \
+            ./features/docbuilder
