@@ -10,6 +10,10 @@ HUGO_VERSION="${2:-0.154.1}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIN_DIR="$SCRIPT_DIR/bin"
 
+# Create bin directories if they don't exist
+mkdir -p "$BIN_DIR/amd64"
+mkdir -p "$BIN_DIR/arm64"
+
 echo "Downloading binaries for docbuilder v${DOCBUILDER_VERSION} and hugo v${HUGO_VERSION}"
 echo "=============================================="
 
