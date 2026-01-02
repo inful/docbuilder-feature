@@ -1,0 +1,40 @@
+{
+    "id": "docbuilder",
+    "version": "0.1.0",
+    "name": "DocBuilder and Hugo Extended",
+    "documentationURL": "https://github.com/inful/docbuilder-feature",
+    "description": "Installs docbuilder and hugo extended binaries.",
+    "licenseURL": "https://github.com/inful/docbuilder-feature/blob/main/LICENSE",
+    "keywords": [
+        "docbuilder",
+        "hugo",
+        "documentation",
+        "static-site-generator"
+    ],
+    "platforms": [
+        "linux"
+    ],
+    "installsAfter": [
+        "ghcr.io/devcontainers/features/common-utils"
+    ],
+    "options": {
+        "docbuilderVersion": {
+            "type": "string",
+            "proposals": [
+                "0.1.46",
+                "latest"
+            ],
+            "default": "0.1.46",
+            "description": "Version of docbuilder to install."
+        },
+        "hugoVersion": {
+            "type": "string",
+            "proposals": [
+                "0.154.1",
+                "latest"
+            ],
+            "default": "0.154.1",
+            "description": "Version of hugo (extended) to install."
+        }
+    }
+}
