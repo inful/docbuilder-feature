@@ -226,6 +226,11 @@ install_hugo() {
 
 # Main installation process
 main() {
+    # Capture all environment at start for debugging
+    echo "DEBUG_ENV_START" >&2
+    env | grep -E "PROXY|HTTP" >&2 || echo "NO_PROXY_ENV_VARS_FOUND" >&2
+    echo "DEBUG_ENV_END" >&2
+    
     echo "=========================================="
     echo "DocBuilder and Hugo Extended Installer"
     echo "=========================================="
