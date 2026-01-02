@@ -266,11 +266,19 @@ WORKSPACE_DIR="/workspaces"
 if [ -d "$WORKSPACE_DIR" ]; then
     cd "$WORKSPACE_DIR" || exit 1
     
-    # Find first subdirectory if it exists
-    FIRST_DIR=$(find "$WORKSPACE_DIR" -mindepth 1 -maxdepth 1 -type d | head -n 1)
-    if [ -n "$FIRST_DIR" ]; then
-        cd "$FIRST_DIR" || exit 1
-    fi
+    # Find first subdirectory that contains a docs folder
+    for ws_dir in "$WORKSPACE_DIR"/*; do
+        if [ -d "$ws_dir/docs" ]; then
+            cd "$ws_dir" || exit 1
+            break
+        fi
+    done
+fi
+
+# Check if we're in a directory with docs
+if [ ! -d "docs" ]; then
+    echo "No docs directory found, skipping docbuilder preview"
+    exit 0
 fi
 
 # Check if docbuilder is available
@@ -307,7 +315,7 @@ WantedBy=default.target
 EOF
         
         # Add to bashrc to start the service on shell start
-        local bashrc_snippet='\n# Auto-start docbuilder preview\nif [ -z "$DOCBUILDER_PREVIEW_STARTED" ]; then\n    export DOCBUILDER_PREVIEW_STARTED=1\n    if command -v docbuilder > /dev/null 2>&1 && [ -d "/workspaces" ]; then\n        (cd /workspaces/* 2>/dev/null && nohup docbuilder preview > /tmp/docbuilder-preview.log 2>&1 &)\n        echo "DocBuilder preview server started. Logs: /tmp/docbuilder-preview.log"\n    fi\nfi\n'
+        local bashrc_snippet='\\n# Auto-start docbuilder preview\\nif [ -z "$DOCBUILDER_PREVIEW_STARTED" ]; then\\n    export DOCBUILDER_PREVIEW_STARTED=1\\n    if command -v docbuilder > /dev/null 2>&1 && [ -d "/workspaces" ]; then\\n        for ws_dir in /workspaces/*; do\\n            if [ -d "$ws_dir/docs" ]; then\\n                (cd "$ws_dir" && nohup docbuilder preview > /tmp/docbuilder-preview.log 2>&1 &)\\n                echo "DocBuilder preview server started in $ws_dir. Logs: /tmp/docbuilder-preview.log"\\n                break\\n            fi\\n        done\\n    fi\\nfi\\n'
         
         # Add to /etc/bash.bashrc for all users
         if ! grep -q "DOCBUILDER_PREVIEW_STARTED" /etc/bash.bashrc 2>/dev/null; then
