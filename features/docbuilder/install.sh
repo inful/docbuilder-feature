@@ -76,6 +76,79 @@ check_install_dir() {
     print_status "Installation directory $INSTALL_DIR exists"
 }
 
+# Install Go (required by Hugo for module management)
+install_go() {
+    # Check if Go is already installed
+    if command -v go > /dev/null 2>&1; then
+        local installed_version=$(go version | awk '{print $3}')
+        print_status "Go is already installed: $installed_version"
+        return 0
+    fi
+    
+    local arch=$(detect_architecture)
+    local go_version="1.23.4"
+    local download_url="https://go.dev/dl/go${go_version}.linux-${arch}.tar.gz"
+    local temp_dir=$(mktemp -d)
+    trap "rm -rf '$temp_dir'" RETURN
+    
+    print_info "Installing Go ${go_version} (${arch})..."
+    print_info "URL: $download_url"
+    
+    # Download with retries
+    local max_attempts=3
+    local attempt=1
+    local curl_opts="-fSsL --connect-timeout 30 --max-time 120 --retry 2"
+    
+    if [ -n "$HTTP_PROXY" ]; then
+        print_info "Using HTTP proxy: $HTTP_PROXY"
+    fi
+    
+    while [ $attempt -le $max_attempts ]; do
+        print_info "Download attempt $attempt of $max_attempts..."
+        # shellcheck disable=SC2086
+        if curl $curl_opts "$download_url" -o "$temp_dir/go.tar.gz" 2>"$temp_dir/curl_error.log"; then
+            if [ -f "$temp_dir/go.tar.gz" ] && [ -s "$temp_dir/go.tar.gz" ]; then
+                print_status "Downloaded Go"
+                break
+            fi
+        fi
+        attempt=$((attempt + 1))
+        if [ $attempt -le $max_attempts ]; then
+            print_info "Retrying in 2 seconds..."
+            sleep 2
+        fi
+    done
+    
+    if [ ! -f "$temp_dir/go.tar.gz" ] || [ ! -s "$temp_dir/go.tar.gz" ]; then
+        print_error "Failed to download Go from $download_url after $max_attempts attempts"
+        return 1
+    fi
+    
+    # Extract to /usr/local
+    print_info "Extracting Go..."
+    if ! sudo -E tar -C /usr/local -xzf "$temp_dir/go.tar.gz"; then
+        print_error "Failed to extract Go archive"
+        return 1
+    fi
+    print_status "Extracted Go"
+    
+    # Add Go to PATH for all users
+    if ! grep -q "/usr/local/go/bin" /etc/profile.d/go.sh 2>/dev/null; then
+        echo 'export PATH=$PATH:/usr/local/go/bin' | sudo -E tee /etc/profile.d/go.sh > /dev/null
+        sudo -E chmod +x /etc/profile.d/go.sh
+    fi
+    
+    # Add to current session
+    export PATH=$PATH:/usr/local/go/bin
+    
+    # Verify installation
+    if ! /usr/local/go/bin/go version > /dev/null 2>&1; then
+        print_error "Failed to verify Go installation"
+        return 1
+    fi
+    print_status "Go installed successfully: $(/usr/local/go/bin/go version)"
+}
+
 # Download and install docbuilder
 install_docbuilder() {
     local arch=$(detect_architecture)
@@ -350,6 +423,9 @@ main() {
     echo ""
     
     check_install_dir
+    echo ""
+    
+    install_go
     echo ""
     
     install_docbuilder
