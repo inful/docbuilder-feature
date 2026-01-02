@@ -58,6 +58,10 @@ check_install_dir() {
         print_info "sudo password will be required for installation to $INSTALL_DIR"
     fi
     print_status "Installation directory $INSTALL_DIR exists"
+    
+    # Debug: print environment variables
+    print_info "Debug - Environment variables:"
+    env | grep -E "PROXY|HTTP|HTTPS" | head -10 || true
 }
 
 # Download and install docbuilder
