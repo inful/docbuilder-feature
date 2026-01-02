@@ -7,6 +7,17 @@
             "noProxy": "${localEnv:NO_PROXY}"
         }
     },
+    "forwardPorts": [1316, 1319],
+    "portsAttributes": {
+        "1316": {
+            "label": "DocBuilder Preview",
+            "onAutoForward": "notify"
+        },
+        "1319": {
+            "label": "DocBuilder LiveReload",
+            "onAutoForward": "silent"
+        }
+    },
     "containerEnv": {
         "http_proxy": "${localEnv:HTTP_PROXY}",
         "https_proxy": "${localEnv:HTTP_PROXY}",
