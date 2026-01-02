@@ -6,6 +6,14 @@ DOCBUILDER_VERSION="${DOCBUILDERVERSION:-${docbuilderVersion:-0.1.46}}"
 HUGO_VERSION="${HUGOVERSION:-${hugoVersion:-0.154.1}}"
 INSTALL_DIR="/usr/local/bin"
 
+# Proxy settings - from devcontainer-features.env or environment
+# The wrapper script sources devcontainer-features.env and exports these variables
+HTTP_PROXY="${HTTPPROXY:-${httpProxy:-${http_proxy:-}}}"
+HTTPS_PROXY="${HTTPSPROXY:-${httpsProxy:-${https_proxy:-}}}"
+
+# Export them for curl to use (in case child processes need them)
+export HTTP_PROXY HTTPS_PROXY
+
 # Color codes for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -66,11 +74,15 @@ install_docbuilder() {
     print_info "URL: $download_url"
     
     # Download with retries
-    # Note: Docker daemon is configured with proxy settings,
-    # curl will use them through HTTP_PROXY/HTTPS_PROXY environment variables
     local max_attempts=3
     local attempt=1
     local curl_opts="-fSsL --connect-timeout 30 --max-time 120 --retry 2"
+    
+    # Add proxy flag if proxy is configured
+    if [ -n "$HTTP_PROXY" ]; then
+        curl_opts="$curl_opts -x $HTTP_PROXY"
+        print_info "Using HTTP proxy: $HTTP_PROXY"
+    fi
     
     while [ $attempt -le $max_attempts ]; do
         print_info "Download attempt $attempt of $max_attempts..."
@@ -137,11 +149,15 @@ install_hugo() {
     print_info "URL: $download_url"
     
     # Download with retries
-    # Note: Docker daemon is configured with proxy settings,
-    # curl will use them through HTTP_PROXY/HTTPS_PROXY environment variables
     local max_attempts=3
     local attempt=1
     local curl_opts="-fSsL --connect-timeout 30 --max-time 120 --retry 2"
+    
+    # Add proxy flag if proxy is configured
+    if [ -n "$HTTP_PROXY" ]; then
+        curl_opts="$curl_opts -x $HTTP_PROXY"
+        print_info "Using HTTP proxy: $HTTP_PROXY"
+    fi
     
     while [ $attempt -le $max_attempts ]; do
         print_info "Download attempt $attempt of $max_attempts..."
