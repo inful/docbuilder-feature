@@ -1,28 +1,10 @@
 #!/bin/bash
 set -e
 
-# Configuration - use both camelCase env vars and fallbacks
+# Configuration
 DOCBUILDER_VERSION="${DOCBUILDERVERSION:-${docbuilderVersion:-0.1.46}}"
 HUGO_VERSION="${HUGOVERSION:-${hugoVersion:-0.154.1}}"
 INSTALL_DIR="/usr/local/bin"
-
-# Proxy settings - try all possible naming conventions
-# devcontainers converts options: httpProxy -> HTTPPROXY
-HTTP_PROXY="${HTTPPROXY:-${httpProxy:-${http_proxy:-}}}"
-HTTPS_PROXY="${HTTPSPROXY:-${httpsProxy:-${https_proxy:-}}}"
-
-# Export them for curl to use
-export HTTP_PROXY HTTPS_PROXY
-
-# DEBUG: Show proxy settings
-echo "========================================"
-echo "DEBUG: Proxy Configuration"
-echo "========================================"
-echo "HTTPPROXY env var: $HTTPPROXY"
-echo "HTTPSPROXY env var: $HTTPSPROXY"
-echo "HTTP_PROXY (computed): $HTTP_PROXY"
-echo "HTTPS_PROXY (computed): $HTTPS_PROXY"
-echo "========================================"
 
 # Color codes for output
 RED='\033[0;31m'
@@ -82,26 +64,18 @@ install_docbuilder() {
     
     print_info "Installing docbuilder v${DOCBUILDER_VERSION} (${arch})..."
     print_info "URL: $download_url"
-    print_info "Proxy settings - HTTP_PROXY='$HTTP_PROXY' HTTPS_PROXY='$HTTPS_PROXY'"
     
-    # Download with retries and better error handling
+    # Download with retries
+    # Note: Docker daemon is configured with proxy settings,
+    # curl will use them through HTTP_PROXY/HTTPS_PROXY environment variables
     local max_attempts=3
     local attempt=1
     local curl_opts="-fSsL --connect-timeout 30 --max-time 120 --retry 2"
     
-    # Add proxy settings if available
-    if [ -n "$HTTP_PROXY" ]; then
-        curl_opts="$curl_opts -x $HTTP_PROXY"
-        print_info "Using HTTP proxy: $HTTP_PROXY"
-    fi
-    if [ -n "$HTTPS_PROXY" ] && [ "$HTTPS_PROXY" != "$HTTP_PROXY" ]; then
-        curl_opts="$curl_opts -x $HTTPS_PROXY"
-    fi
-    
     while [ $attempt -le $max_attempts ]; do
         print_info "Download attempt $attempt of $max_attempts..."
         # shellcheck disable=SC2086
-        if curl $curl_opts "$download_url" -o "$temp_dir/docbuilder.tar.gz" 2>&1 | tee /tmp/curl_err.log; then
+        if curl $curl_opts "$download_url" -o "$temp_dir/docbuilder.tar.gz" 2>&1; then
             :
         fi
         if [ -f "$temp_dir/docbuilder.tar.gz" ] && [ -s "$temp_dir/docbuilder.tar.gz" ]; then
@@ -117,7 +91,6 @@ install_docbuilder() {
     
     if [ ! -f "$temp_dir/docbuilder.tar.gz" ] || [ ! -s "$temp_dir/docbuilder.tar.gz" ]; then
         print_error "Failed to download docbuilder from $download_url after $max_attempts attempts"
-        [ -f /tmp/curl_err.log ] && cat /tmp/curl_err.log
         return 1
     fi
     
@@ -162,26 +135,18 @@ install_hugo() {
     
     print_info "Installing hugo (extended) v${HUGO_VERSION} (${arch})..."
     print_info "URL: $download_url"
-    print_info "Proxy settings - HTTP_PROXY='$HTTP_PROXY' HTTPS_PROXY='$HTTPS_PROXY'"
     
-    # Download with retries and better error handling
+    # Download with retries
+    # Note: Docker daemon is configured with proxy settings,
+    # curl will use them through HTTP_PROXY/HTTPS_PROXY environment variables
     local max_attempts=3
     local attempt=1
     local curl_opts="-fSsL --connect-timeout 30 --max-time 120 --retry 2"
     
-    # Add proxy settings if available
-    if [ -n "$HTTP_PROXY" ]; then
-        curl_opts="$curl_opts -x $HTTP_PROXY"
-        print_info "Using HTTP proxy: $HTTP_PROXY"
-    fi
-    if [ -n "$HTTPS_PROXY" ] && [ "$HTTPS_PROXY" != "$HTTP_PROXY" ]; then
-        curl_opts="$curl_opts -x $HTTPS_PROXY"
-    fi
-    
     while [ $attempt -le $max_attempts ]; do
         print_info "Download attempt $attempt of $max_attempts..."
         # shellcheck disable=SC2086
-        if curl $curl_opts "$download_url" -o "$temp_dir/hugo.tar.gz" 2>&1 | tee /tmp/curl_err.log; then
+        if curl $curl_opts "$download_url" -o "$temp_dir/hugo.tar.gz" 2>&1; then
             :
         fi
         if [ -f "$temp_dir/hugo.tar.gz" ] && [ -s "$temp_dir/hugo.tar.gz" ]; then
