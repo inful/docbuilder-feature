@@ -12,7 +12,7 @@ Add the feature to your `devcontainer.json`:
     "features": {
         "ghcr.io/inful/docbuilder-feature/docbuilder:latest": {}
     },
-    "forwardPorts": [1316, 1317, 1318, 1319]
+    "forwardPorts": [1316, 1319]
 }
 ```
 
@@ -24,23 +24,15 @@ This installs:
 
 ## Port Forwarding
 
-DocBuilder uses multiple ports that should be forwarded to access the preview server:
+DocBuilder uses two ports that should be forwarded to access the preview server:
 
 ```json
 {
-    "forwardPorts": [1316, 1317, 1318, 1319],
+    "forwardPorts": [1316, 1319],
     "portsAttributes": {
         "1316": {
             "label": "DocBuilder Preview",
             "onAutoForward": "notify"
-        },
-        "1317": {
-            "label": "DocBuilder Webhooks",
-            "onAutoForward": "silent"
-        },
-        "1318": {
-            "label": "DocBuilder Admin",
-            "onAutoForward": "silent"
         },
         "1319": {
             "label": "DocBuilder LiveReload",
@@ -52,8 +44,6 @@ DocBuilder uses multiple ports that should be forwarded to access the preview se
 
 **Ports:**
 - **1316**: Preview server (main web interface)
-- **1317**: Webhook server
-- **1318**: Admin interface
 - **1319**: LiveReload server
 
 ## Configuration Examples
@@ -95,7 +85,8 @@ DocBuilder uses multiple ports that should be forwarded to access the preview se
             "previewPort": "8080",
             "verbose": true
         }
-    }
+    },
+    "forwardPorts": [8080, 8083]
 }
 ```
 

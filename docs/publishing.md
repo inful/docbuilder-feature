@@ -80,7 +80,7 @@ Once published, reference the feature in your `devcontainer.json`:
             "previewPort": "1316"
         }
     },
-    "forwardPorts": [1316, 1317, 1318, 1319]
+    "forwardPorts": [1316, 1319]
 }
 ```
 

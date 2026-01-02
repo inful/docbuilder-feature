@@ -98,15 +98,11 @@ The main HTTP port where the documentation preview will be served. Make sure to 
             "previewPort": "8080"
         }
     },
-    "forwardPorts": [8080, 8081, 8082, 8083]
+    "forwardPorts": [8080, 8083]
 }
 ```
 
-**Note:** DocBuilder uses 4 sequential ports starting from the preview port:
-- Port N: Preview server
-- Port N+1: Webhooks
-- Port N+2: Admin interface
-- Port N+3: LiveReload
+**Note:** DocBuilder uses the preview port and the LiveReload port (preview port + 3).
 
 ### `verbose`
 
@@ -205,19 +201,11 @@ Here's a complete example showing all options:
             "noProxy": "${localEnv:NO_PROXY}"
         }
     },
-    "forwardPorts": [1316, 1317, 1318, 1319],
+    "forwardPorts": [1316, 1319],
     "portsAttributes": {
         "1316": {
             "label": "DocBuilder Preview",
             "onAutoForward": "notify"
-        },
-        "1317": {
-            "label": "DocBuilder Webhooks",
-            "onAutoForward": "silent"
-        },
-        "1318": {
-            "label": "DocBuilder Admin",
-            "onAutoForward": "silent"
         },
         "1319": {
             "label": "DocBuilder LiveReload",
