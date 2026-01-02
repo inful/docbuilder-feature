@@ -11,9 +11,6 @@
         "documentation",
         "static-site-generator"
     ],
-    "platforms": [
-        "linux"
-    ],
     "installsAfter": [
         "ghcr.io/devcontainers/features/common-utils"
     ],
@@ -45,6 +42,11 @@
             "type": "string",
             "default": "",
             "description": "HTTPS proxy URL (e.g., http://proxy.example.com:3128)"
+        },
+        "noProxy": {
+            "type": "string",
+            "default": "",
+            "description": "Comma-separated list of hosts that should bypass the proxy (e.g., localhost,127.0.0.1,.example.com)"
         }
     }
 }

@@ -16,9 +16,12 @@ INSTALL_DIR="/usr/local/bin"
 # Proxy settings - from devcontainer-features.env or environment
 HTTP_PROXY="${HTTPPROXY:-${httpProxy:-${http_proxy:-}}}"
 HTTPS_PROXY="${HTTPSPROXY:-${httpsProxy:-${https_proxy:-}}}"
+NO_PROXY="${NOPROXY:-${noProxy:-${no_proxy:-}}}"
 
-# Export them for curl to use (in case child processes need them)
-export HTTP_PROXY HTTPS_PROXY
+# Export them for curl and other tools to use
+export http_proxy="$HTTP_PROXY"
+export https_proxy="$HTTPS_PROXY"
+export HTTP_PROXY HTTPS_PROXY NO_PROXY
 
 # Color codes for output
 RED='\033[0;31m'
@@ -84,9 +87,9 @@ install_docbuilder() {
     local attempt=1
     local curl_opts="-fSsL --connect-timeout 30 --max-time 120 --retry 2"
     
-    # Add proxy flag if proxy is configured
+    # Note: Proxy is handled via environment variables (http_proxy, https_proxy, no_proxy)
+    # which are exported at the beginning of this script
     if [ -n "$HTTP_PROXY" ]; then
-        curl_opts="$curl_opts -x $HTTP_PROXY"
         print_info "Using HTTP proxy: $HTTP_PROXY"
     fi
     
@@ -94,12 +97,17 @@ install_docbuilder() {
         print_info "Download attempt $attempt of $max_attempts..."
         print_info "Curl command: curl $curl_opts \"$download_url\" -o \"$temp_dir/docbuilder.tar.gz\""
         # shellcheck disable=SC2086
-        if curl $curl_opts "$download_url" -o "$temp_dir/docbuilder.tar.gz" 2>&1; then
-            :
-        fi
-        if [ -f "$temp_dir/docbuilder.tar.gz" ] && [ -s "$temp_dir/docbuilder.tar.gz" ]; then
-            print_status "Downloaded docbuilder"
-            break
+        if curl $curl_opts "$download_url" -o "$temp_dir/docbuilder.tar.gz" 2>"$temp_dir/curl_error.log"; then
+            if [ -f "$temp_dir/docbuilder.tar.gz" ] && [ -s "$temp_dir/docbuilder.tar.gz" ]; then
+                print_status "Downloaded docbuilder"
+                break
+            fi
+        else
+            print_error "Curl failed with exit code $?"
+            if [ -f "$temp_dir/curl_error.log" ]; then
+                print_error "Curl error output:"
+                cat "$temp_dir/curl_error.log" >&2
+            fi
         fi
         attempt=$((attempt + 1))
         if [ $attempt -le $max_attempts ]; then
@@ -160,9 +168,9 @@ install_hugo() {
     local attempt=1
     local curl_opts="-fSsL --connect-timeout 30 --max-time 120 --retry 2"
     
-    # Add proxy flag if proxy is configured
+    # Note: Proxy is handled via environment variables (http_proxy, https_proxy, no_proxy)
+    # which are exported at the beginning of this script
     if [ -n "$HTTP_PROXY" ]; then
-        curl_opts="$curl_opts -x $HTTP_PROXY"
         print_info "Using HTTP proxy: $HTTP_PROXY"
     fi
     
@@ -170,12 +178,17 @@ install_hugo() {
         print_info "Download attempt $attempt of $max_attempts..."
         print_info "Curl command: curl $curl_opts \"$download_url\" -o \"$temp_dir/hugo.tar.gz\""
         # shellcheck disable=SC2086
-        if curl $curl_opts "$download_url" -o "$temp_dir/hugo.tar.gz" 2>&1; then
-            :
-        fi
-        if [ -f "$temp_dir/hugo.tar.gz" ] && [ -s "$temp_dir/hugo.tar.gz" ]; then
-            print_status "Downloaded hugo"
-            break
+        if curl $curl_opts "$download_url" -o "$temp_dir/hugo.tar.gz" 2>"$temp_dir/curl_error.log"; then
+            if [ -f "$temp_dir/hugo.tar.gz" ] && [ -s "$temp_dir/hugo.tar.gz" ]; then
+                print_status "Downloaded hugo"
+                break
+            fi
+        else
+            print_error "Curl failed with exit code $?"
+            if [ -f "$temp_dir/curl_error.log" ]; then
+                print_error "Curl error output:"
+                cat "$temp_dir/curl_error.log" >&2
+            fi
         fi
         attempt=$((attempt + 1))
         if [ $attempt -le $max_attempts ]; then

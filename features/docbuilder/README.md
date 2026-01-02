@@ -37,6 +37,7 @@ Add this feature to your `devcontainer.json`:
 ```
 
 This will install:
+
 - docbuilder v0.1.46
 - Hugo Extended v0.154.1
 
@@ -69,6 +70,24 @@ To always use the latest available versions:
     }
 }
 ```
+
+### Using with a Proxy
+
+If you're behind a corporate proxy, you can configure proxy settings:
+
+```json
+{
+    "features": {
+        "ghcr.io/inful/docbuilder-feature/docbuilder:latest": {
+            "httpProxy": "${localEnv:HTTP_PROXY}",
+            "httpsProxy": "${localEnv:HTTPS_PROXY}",
+            "noProxy": "${localEnv:NO_PROXY}"
+        }
+    }
+}
+```
+
+The feature will use these proxy settings when downloading the binaries from GitHub.
 
 ## Installation Details
 
