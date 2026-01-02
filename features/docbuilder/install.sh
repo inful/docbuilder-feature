@@ -63,13 +63,19 @@ install_docbuilder() {
     trap "rm -rf '$temp_dir'" RETURN
     
     print_info "Installing docbuilder v${DOCBUILDER_VERSION} (${arch})..."
+    print_info "URL: $download_url"
+    print_info "Proxy settings: http_proxy=${http_proxy:-none} https_proxy=${https_proxy:-none}"
     
     # Download with retries and better error handling
     local max_attempts=3
     local attempt=1
     while [ $attempt -le $max_attempts ]; do
         print_info "Download attempt $attempt of $max_attempts..."
-        if curl -fSsL --connect-timeout 10 --max-time 60 "$download_url" -o "$temp_dir/docbuilder.tar.gz" 2>/dev/null; then
+        if curl -fSsL --connect-timeout 10 --max-time 60 "$download_url" -o "$temp_dir/docbuilder.tar.gz" 2>&1 | tee /tmp/curl_err.log; then
+            :
+        fi
+        if [ -f "$temp_dir/docbuilder.tar.gz" ] && [ -s "$temp_dir/docbuilder.tar.gz" ]; then
+            print_status "Downloaded docbuilder"
             break
         fi
         attempt=$((attempt + 1))
@@ -81,9 +87,9 @@ install_docbuilder() {
     
     if [ ! -f "$temp_dir/docbuilder.tar.gz" ] || [ ! -s "$temp_dir/docbuilder.tar.gz" ]; then
         print_error "Failed to download docbuilder from $download_url after $max_attempts attempts"
+        [ -f /tmp/curl_err.log ] && cat /tmp/curl_err.log
         return 1
     fi
-    print_status "Downloaded docbuilder"
     
     # Extract
     if ! tar -xzf "$temp_dir/docbuilder.tar.gz" -C "$temp_dir"; then
@@ -99,12 +105,12 @@ install_docbuilder() {
         return 1
     fi
     
-    if ! sudo mv "$binary" "$INSTALL_DIR/docbuilder"; then
+    if ! sudo -E mv "$binary" "$INSTALL_DIR/docbuilder"; then
         print_error "Failed to install docbuilder to $INSTALL_DIR"
         return 1
     fi
     
-    if ! sudo chmod +x "$INSTALL_DIR/docbuilder"; then
+    if ! sudo -E chmod +x "$INSTALL_DIR/docbuilder"; then
         print_error "Failed to make docbuilder executable"
         return 1
     fi
@@ -125,13 +131,19 @@ install_hugo() {
     trap "rm -rf '$temp_dir'" RETURN
     
     print_info "Installing hugo (extended) v${HUGO_VERSION} (${arch})..."
+    print_info "URL: $download_url"
+    print_info "Proxy settings: http_proxy=${http_proxy:-none} https_proxy=${https_proxy:-none}"
     
     # Download with retries and better error handling
     local max_attempts=3
     local attempt=1
     while [ $attempt -le $max_attempts ]; do
         print_info "Download attempt $attempt of $max_attempts..."
-        if curl -fSsL --connect-timeout 10 --max-time 60 "$download_url" -o "$temp_dir/hugo.tar.gz" 2>/dev/null; then
+        if curl -fSsL --connect-timeout 10 --max-time 60 "$download_url" -o "$temp_dir/hugo.tar.gz" 2>&1 | tee /tmp/curl_err.log; then
+            :
+        fi
+        if [ -f "$temp_dir/hugo.tar.gz" ] && [ -s "$temp_dir/hugo.tar.gz" ]; then
+            print_status "Downloaded hugo"
             break
         fi
         attempt=$((attempt + 1))
@@ -143,9 +155,9 @@ install_hugo() {
     
     if [ ! -f "$temp_dir/hugo.tar.gz" ] || [ ! -s "$temp_dir/hugo.tar.gz" ]; then
         print_error "Failed to download hugo from $download_url after $max_attempts attempts"
+        [ -f /tmp/curl_err.log ] && cat /tmp/curl_err.log
         return 1
     fi
-    print_status "Downloaded hugo"
     
     # Extract
     if ! tar -xzf "$temp_dir/hugo.tar.gz" -C "$temp_dir"; then
@@ -160,12 +172,12 @@ install_hugo() {
         return 1
     fi
     
-    if ! sudo mv "$temp_dir/hugo" "$INSTALL_DIR/hugo"; then
+    if ! sudo -E mv "$temp_dir/hugo" "$INSTALL_DIR/hugo"; then
         print_error "Failed to install hugo to $INSTALL_DIR"
         return 1
     fi
     
-    if ! sudo chmod +x "$INSTALL_DIR/hugo"; then
+    if ! sudo -E chmod +x "$INSTALL_DIR/hugo"; then
         print_error "Failed to make hugo executable"
         return 1
     fi
