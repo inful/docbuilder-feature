@@ -86,6 +86,7 @@ install_docbuilder() {
     
     while [ $attempt -le $max_attempts ]; do
         print_info "Download attempt $attempt of $max_attempts..."
+        print_info "Curl command: curl $curl_opts \"$download_url\" -o \"$temp_dir/docbuilder.tar.gz\""
         # shellcheck disable=SC2086
         if curl $curl_opts "$download_url" -o "$temp_dir/docbuilder.tar.gz" 2>&1; then
             :
@@ -161,6 +162,7 @@ install_hugo() {
     
     while [ $attempt -le $max_attempts ]; do
         print_info "Download attempt $attempt of $max_attempts..."
+        print_info "Curl command: curl $curl_opts \"$download_url\" -o \"$temp_dir/hugo.tar.gz\""
         # shellcheck disable=SC2086
         if curl $curl_opts "$download_url" -o "$temp_dir/hugo.tar.gz" 2>&1; then
             :
