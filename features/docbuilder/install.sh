@@ -1,24 +1,24 @@
 #!/bin/bash
 set -e
 
-# Log what's available
-set | grep -i proxy || echo "No proxy in set output" >&2
+# Source feature configuration if it exists
+if [ -f "/tmp/dev-container-features/devcontainer-features.builtin.env" ]; then
+    # Source the environment file that devcontainers CLI provides
+    # shellcheck disable=SC1091
+    set -a
+    source "/tmp/dev-container-features/devcontainer-features.builtin.env" 2>/dev/null || true
+    set +a
+fi
 
 # Configuration
-DOCBUILDER_VERSION="${DOCBUILDER_VERSION:-0.1.46}"
-HUGO_VERSION="${HUGO_VERSION:-0.154.1}"
+DOCBUILDER_VERSION="${DOCBUILDERVERSION:-0.1.46}"
+HUGO_VERSION="${HUGOVERSION:-0.154.1}"
 INSTALL_DIR="/usr/local/bin"
 
 # Proxy settings from feature options or environment
-# Feature passes options as HTTPPROXY and HTTPSPROXY
+# Feature options are passed as HTTPPROXY and HTTPSPROXY
 HTTP_PROXY="${HTTPPROXY:-${http_proxy:-}}"
 HTTPS_PROXY="${HTTPSPROXY:-${https_proxy:-}}"
-
-# Debug: log what we're getting
-echo "After assignment - HTTPPROXY=${HTTPPROXY}" >&2
-echo "After assignment - HTTP_PROXY=${HTTP_PROXY}" >&2
-echo "After assignment - HTTPSPROXY=${HTTPSPROXY}" >&2
-echo "After assignment - HTTPS_PROXY=${HTTPS_PROXY}" >&2
 
 # Color codes for output
 RED='\033[0;31m'
