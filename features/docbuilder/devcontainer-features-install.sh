@@ -12,6 +12,14 @@ if [ -f "devcontainer-features.env" ]; then
     
     # Export all sourced variables so they're available to the called script
     export HTTPPROXY HTTPSPROXY DOCBUILDERVERSION HUGOVERSION
+    
+    echo "DEBUG: After sourcing devcontainer-features.env:"
+    echo "DEBUG: HTTPPROXY=$HTTPPROXY"
+    echo "DEBUG: HTTPSPROXY=$HTTPSPROXY"
+    echo "DEBUG: DOCBUILDERVERSION=$DOCBUILDERVERSION"
+    echo "DEBUG: HUGOVERSION=$HUGOVERSION"
+else
+    echo "DEBUG: devcontainer-features.env not found!"
 fi
 
 # Call the actual installer with the variables available
