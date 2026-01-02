@@ -64,13 +64,23 @@ install_docbuilder() {
     
     print_info "Installing docbuilder v${DOCBUILDER_VERSION} (${arch})..."
     
-    # Download
-    if ! curl -sL "$download_url" -o "$temp_dir/docbuilder.tar.gz"; then
-        print_error "Failed to download docbuilder from $download_url"
-        return 1
-    fi
-    if [ ! -s "$temp_dir/docbuilder.tar.gz" ]; then
-        print_error "Downloaded file is empty or does not exist"
+    # Download with retries and better error handling
+    local max_attempts=3
+    local attempt=1
+    while [ $attempt -le $max_attempts ]; do
+        print_info "Download attempt $attempt of $max_attempts..."
+        if curl -fSsL --connect-timeout 10 --max-time 60 "$download_url" -o "$temp_dir/docbuilder.tar.gz" 2>/dev/null; then
+            break
+        fi
+        attempt=$((attempt + 1))
+        if [ $attempt -le $max_attempts ]; then
+            print_info "Retrying in 2 seconds..."
+            sleep 2
+        fi
+    done
+    
+    if [ ! -f "$temp_dir/docbuilder.tar.gz" ] || [ ! -s "$temp_dir/docbuilder.tar.gz" ]; then
+        print_error "Failed to download docbuilder from $download_url after $max_attempts attempts"
         return 1
     fi
     print_status "Downloaded docbuilder"
@@ -116,13 +126,23 @@ install_hugo() {
     
     print_info "Installing hugo (extended) v${HUGO_VERSION} (${arch})..."
     
-    # Download
-    if ! curl -sL "$download_url" -o "$temp_dir/hugo.tar.gz"; then
-        print_error "Failed to download hugo from $download_url"
-        return 1
-    fi
-    if [ ! -s "$temp_dir/hugo.tar.gz" ]; then
-        print_error "Downloaded file is empty or does not exist"
+    # Download with retries and better error handling
+    local max_attempts=3
+    local attempt=1
+    while [ $attempt -le $max_attempts ]; do
+        print_info "Download attempt $attempt of $max_attempts..."
+        if curl -fSsL --connect-timeout 10 --max-time 60 "$download_url" -o "$temp_dir/hugo.tar.gz" 2>/dev/null; then
+            break
+        fi
+        attempt=$((attempt + 1))
+        if [ $attempt -le $max_attempts ]; then
+            print_info "Retrying in 2 seconds..."
+            sleep 2
+        fi
+    done
+    
+    if [ ! -f "$temp_dir/hugo.tar.gz" ] || [ ! -s "$temp_dir/hugo.tar.gz" ]; then
+        print_error "Failed to download hugo from $download_url after $max_attempts attempts"
         return 1
     fi
     print_status "Downloaded hugo"
