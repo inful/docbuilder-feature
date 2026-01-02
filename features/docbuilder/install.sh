@@ -14,6 +14,15 @@ HTTPS_PROXY="${HTTPSPROXY:-${httpsProxy:-${https_proxy:-}}}"
 # Export them for curl to use
 export HTTP_PROXY HTTPS_PROXY
 
+# DEBUG: Show proxy settings
+if [ -n "$HTTP_PROXY" ]; then
+    echo "DEBUG: HTTP_PROXY is set to: $HTTP_PROXY"
+else
+    echo "DEBUG: HTTP_PROXY is not set"
+    echo "DEBUG: Env vars available:"
+    env | grep -i proxy || echo "DEBUG: No proxy env vars found"
+fi
+
 # Color codes for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
