@@ -43,7 +43,7 @@ jobs:
         run: |
           devcontainer features publish \
             --registry ghcr.io \
-            --namespace ${{ github.repository_owner }} \
+            --namespace ${{ github.repository_owner }}/${{ github.event.repository.name }} \
             --log-level debug \
             ./features/docbuilder
         env:
