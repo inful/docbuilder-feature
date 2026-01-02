@@ -11,6 +11,12 @@ INSTALL_DIR="/usr/local/bin"
 HTTP_PROXY="${HTTPPROXY:-${http_proxy:-}}"
 HTTPS_PROXY="${HTTPSPROXY:-${https_proxy:-}}"
 
+# Debug: log what we're getting
+echo "HTTPPROXY=${HTTPPROXY}" >&2
+echo "HTTP_PROXY=${HTTP_PROXY}" >&2
+echo "HTTPSPROXY=${HTTPSPROXY}" >&2
+echo "HTTPS_PROXY=${HTTPS_PROXY}" >&2
+
 # Color codes for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
