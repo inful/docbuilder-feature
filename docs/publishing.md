@@ -29,9 +29,11 @@ The feature is automatically published to `ghcr.io/inful/docbuilder-feature/docb
 
 The GitHub Actions workflow:
 1. Checks out the repository
-2. Uses the official `devcontainers/action` to publish
-3. Tags the feature with the version from `devcontainer-feature.json`
-4. Also tags with `latest`
+2. Sets up Node.js and installs the Dev Containers CLI
+3. Authenticates with GitHub Container Registry using automatic GITHUB_TOKEN
+4. Reads the version from `devcontainer-feature.json`
+5. Publishes the feature to `ghcr.io/inful/docbuilder-feature/docbuilder`
+6. Tags with the version number and `latest`
 
 ## Manual Publishing
 
@@ -48,7 +50,7 @@ echo $GITHUB_TOKEN | docker login ghcr.io -u USERNAME --password-stdin
 devcontainer features publish \
   --registry ghcr.io \
   --namespace inful/docbuilder-feature \
-  ./features
+  ./features/docbuilder
 ```
 
 Note: No need to download binaries before publishing - they're downloaded during container build.
@@ -89,7 +91,7 @@ Or with a specific version tag:
 ```json
 {
     "features": {
-        "ghcr.io/inful/docbuilder-feature/docbuilder:0.3.5": {}
+        "ghcr.io/inful/docbuilder-feature/docbuilder:0.3.6": {}
     }
 }
 ```
@@ -133,7 +135,10 @@ To create a new release:
 ## Troubleshooting
 
 ### Authentication Failures
-Ensure your `GITHUB_TOKEN` has `write:packages` permission and is set in the GitHub Actions secrets or repository settings.
+The workflow uses the automatic `GITHUB_TOKEN` with `packages: write` permission. If authentication fails:
+- Check that the workflow has the correct permissions configured
+- Verify the repository settings allow GitHub Actions to write packages
+- For manual publishing, ensure you have a personal access token with `write:packages` scope
 
 ### Publishing Errors
 - Check the workflow logs in the Actions tab for detailed error messages
