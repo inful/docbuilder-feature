@@ -1,14 +1,27 @@
 #!/bin/bash
 set -e
 
+# Source the devcontainer-features.env file if it exists
+# This file contains the feature options passed from devcontainer.json
+if [ -f "$(dirname "$0")/devcontainer-features.env" ]; then
+    # shellcheck source=/dev/null
+    source "$(dirname "$0")/devcontainer-features.env"
+fi
+
 # Configuration
 DOCBUILDER_VERSION="${DOCBUILDERVERSION:-${docbuilderVersion:-0.1.46}}"
 HUGO_VERSION="${HUGOVERSION:-${hugoVersion:-0.154.1}}"
 INSTALL_DIR="/usr/local/bin"
 
-# Get the directory where this script is located (feature directory)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BIN_DIR="$SCRIPT_DIR/bin"
+# Proxy settings - from devcontainer-features.env or environment
+HTTP_PROXY="${HTTPPROXY:-${httpProxy:-${http_proxy:-}}}"
+HTTPS_PROXY="${HTTPSPROXY:-${httpsProxy:-${https_proxy:-}}}"
+NO_PROXY="${NOPROXY:-${noProxy:-${no_proxy:-}}}"
+
+# Export them for curl and other tools to use
+export http_proxy="$HTTP_PROXY"
+export https_proxy="$HTTPS_PROXY"
+export HTTP_PROXY HTTPS_PROXY NO_PROXY
 
 # Color codes for output
 RED='\033[0;31m'
@@ -62,25 +75,73 @@ check_install_dir() {
 # Download and install docbuilder
 install_docbuilder() {
     local arch=$(detect_architecture)
-    local binary_path="$BIN_DIR/${arch}/docbuilder"
+    local download_url="https://github.com/inful/docbuilder/releases/download/v${DOCBUILDER_VERSION}/docbuilder_linux_${arch}.tar.gz"
+    local temp_dir=$(mktemp -d)
+    trap "rm -rf '$temp_dir'" RETURN
     
     print_info "Installing docbuilder v${DOCBUILDER_VERSION} (${arch})..."
+    print_info "URL: $download_url"
     
-    # Check if binary exists in the bin directory
-    if [ ! -f "$binary_path" ]; then
-        print_error "docbuilder binary not found at $binary_path"
-        print_error "The binary should be bundled with this feature in bin/${arch}/docbuilder"
+    # Download with retries
+    local max_attempts=3
+    local attempt=1
+    local curl_opts="-fSsL --connect-timeout 30 --max-time 120 --retry 2"
+    
+    # Note: Proxy is handled via environment variables (http_proxy, https_proxy, no_proxy)
+    # which are exported at the beginning of this script
+    if [ -n "$HTTP_PROXY" ]; then
+        print_info "Using HTTP proxy: $HTTP_PROXY"
+    fi
+    
+    while [ $attempt -le $max_attempts ]; do
+        print_info "Download attempt $attempt of $max_attempts..."
+        print_info "Environment: http_proxy='$http_proxy' https_proxy='$https_proxy' no_proxy='$NO_PROXY'"
+        print_info "Curl command: curl $curl_opts \"$download_url\" -o \"$temp_dir/docbuilder.tar.gz\""
+        # shellcheck disable=SC2086
+        if curl $curl_opts -v "$download_url" -o "$temp_dir/docbuilder.tar.gz" 2>"$temp_dir/curl_error.log"; then
+            if [ -f "$temp_dir/docbuilder.tar.gz" ] && [ -s "$temp_dir/docbuilder.tar.gz" ]; then
+                print_status "Downloaded docbuilder"
+                break
+            else
+                print_error "Download succeeded but file is missing or empty"
+                print_error "File exists: $([ -f "$temp_dir/docbuilder.tar.gz" ] && echo yes || echo no)"
+                print_error "File size: $([ -f "$temp_dir/docbuilder.tar.gz" ] && stat -f%z "$temp_dir/docbuilder.tar.gz" 2>/dev/null || stat -c%s "$temp_dir/docbuilder.tar.gz" 2>/dev/null || echo unknown)"
+            fi
+        else
+            local exit_code=$?
+            print_error "Curl failed with exit code $exit_code"
+            if [ -f "$temp_dir/curl_error.log" ]; then
+                print_error "Curl error output:"
+                cat "$temp_dir/curl_error.log" >&2
+            fi
+        fi
+        attempt=$((attempt + 1))
+        if [ $attempt -le $max_attempts ]; then
+            print_info "Retrying in 2 seconds..."
+            sleep 2
+        fi
+    done
+    
+    if [ ! -f "$temp_dir/docbuilder.tar.gz" ] || [ ! -s "$temp_dir/docbuilder.tar.gz" ]; then
+        print_error "Failed to download docbuilder from $download_url after $max_attempts attempts"
         return 1
     fi
     
-    # Verify binary is executable
-    if [ ! -x "$binary_path" ]; then
-        print_info "Making binary executable..."
-        chmod +x "$binary_path"
+    # Extract
+    if ! tar -xzf "$temp_dir/docbuilder.tar.gz" -C "$temp_dir"; then
+        print_error "Failed to extract docbuilder archive"
+        return 1
+    fi
+    print_status "Extracted docbuilder"
+    
+    # Find and install binary
+    local binary=$(find "$temp_dir" -maxdepth 1 -type f -name "docbuilder")
+    if [ -z "$binary" ]; then
+        print_error "docbuilder binary not found in archive"
+        return 1
     fi
     
-    # Install binary
-    if ! sudo -E cp "$binary_path" "$INSTALL_DIR/docbuilder"; then
+    if ! sudo -E mv "$binary" "$INSTALL_DIR/docbuilder"; then
         print_error "Failed to install docbuilder to $INSTALL_DIR"
         return 1
     fi
@@ -101,25 +162,73 @@ install_docbuilder() {
 # Download and install hugo (extended)
 install_hugo() {
     local arch=$(detect_architecture)
-    local binary_path="$BIN_DIR/${arch}/hugo"
+    local download_url="https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-${arch}.tar.gz"
+    local temp_dir=$(mktemp -d)
+    trap "rm -rf '$temp_dir'" RETURN
     
     print_info "Installing hugo (extended) v${HUGO_VERSION} (${arch})..."
+    print_info "URL: $download_url"
     
-    # Check if binary exists in the bin directory
-    if [ ! -f "$binary_path" ]; then
-        print_error "hugo binary not found at $binary_path"
-        print_error "The binary should be bundled with this feature in bin/${arch}/hugo"
+    # Download with retries
+    local max_attempts=3
+    local attempt=1
+    local curl_opts="-fSsL --connect-timeout 30 --max-time 120 --retry 2"
+    
+    # Note: Proxy is handled via environment variables (http_proxy, https_proxy, no_proxy)
+    # which are exported at the beginning of this script
+    if [ -n "$HTTP_PROXY" ]; then
+        print_info "Using HTTP proxy: $HTTP_PROXY"
+    fi
+    
+    while [ $attempt -le $max_attempts ]; do
+        print_info "Download attempt $attempt of $max_attempts..."
+        print_info "Environment: http_proxy='$http_proxy' https_proxy='$https_proxy' no_proxy='$NO_PROXY'"
+        print_info "Curl command: curl $curl_opts \"$download_url\" -o \"$temp_dir/hugo.tar.gz\""
+        # shellcheck disable=SC2086
+        if curl $curl_opts -v "$download_url" -o "$temp_dir/hugo.tar.gz" 2>"$temp_dir/curl_error.log"; then
+            if [ -f "$temp_dir/hugo.tar.gz" ] && [ -s "$temp_dir/hugo.tar.gz" ]; then
+                print_status "Downloaded hugo"
+                break
+            else
+                print_error "Download succeeded but file is missing or empty"
+                print_error "File exists: $([ -f "$temp_dir/hugo.tar.gz" ] && echo yes || echo no)"
+                print_error "File size: $([ -f "$temp_dir/hugo.tar.gz" ] && stat -f%z "$temp_dir/hugo.tar.gz" 2>/dev/null || stat -c%s "$temp_dir/hugo.tar.gz" 2>/dev/null || echo unknown)"
+            fi
+        else
+            local exit_code=$?
+            print_error "Curl failed with exit code $exit_code"
+            if [ -f "$temp_dir/curl_error.log" ]; then
+                print_error "Curl error output:"
+                cat "$temp_dir/curl_error.log" >&2
+            fi
+        fi
+        attempt=$((attempt + 1))
+        if [ $attempt -le $max_attempts ]; then
+            print_info "Retrying in 2 seconds..."
+            sleep 2
+        fi
+    done
+    
+    if [ ! -f "$temp_dir/hugo.tar.gz" ] || [ ! -s "$temp_dir/hugo.tar.gz" ]; then
+        print_error "Failed to download hugo from $download_url after $max_attempts attempts"
+        [ -f /tmp/curl_err.log ] && cat /tmp/curl_err.log
         return 1
     fi
     
-    # Verify binary is executable
-    if [ ! -x "$binary_path" ]; then
-        print_info "Making binary executable..."
-        chmod +x "$binary_path"
+    # Extract
+    if ! tar -xzf "$temp_dir/hugo.tar.gz" -C "$temp_dir"; then
+        print_error "Failed to extract hugo archive"
+        return 1
     fi
+    print_status "Extracted hugo"
     
     # Install binary
-    if ! sudo -E cp "$binary_path" "$INSTALL_DIR/hugo"; then
+    if [ ! -f "$temp_dir/hugo" ]; then
+        print_error "hugo binary not found in archive"
+        return 1
+    fi
+    
+    if ! sudo -E mv "$temp_dir/hugo" "$INSTALL_DIR/hugo"; then
         print_error "Failed to install hugo to $INSTALL_DIR"
         return 1
     fi
