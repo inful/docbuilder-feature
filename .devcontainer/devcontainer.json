@@ -1,7 +1,10 @@
 {
     "image": "mcr.microsoft.com/devcontainers/javascript-node:3-22",
     "features": {
-        "ghcr.io/inful/docbuilder-feature/docbuilder:latest": {}
+        "ghcr.io/inful/docbuilder-feature/docbuilder:latest": {
+            "httpProxy": "${localEnv:HTTP_PROXY}",
+            "httpsProxy": "${localEnv:HTTPS_PROXY}"
+        }
     },
     "remoteEnv": {
         "http_proxy": "${localEnv:HTTP_PROXY}",
@@ -9,16 +12,6 @@
         "HTTP_PROXY": "${localEnv:HTTP_PROXY}",
         "HTTPS_PROXY": "${localEnv:HTTP_PROXY}",
         "NO_PROXY": "${localEnv:NO_PROXY}"
-    },
-    "build": {
-        "dockerfile": "Dockerfile",
-        "args": {
-            "http_proxy": "${localEnv:HTTP_PROXY}",
-            "https_proxy": "${localEnv:HTTP_PROXY}",
-            "HTTP_PROXY": "${localEnv:HTTP_PROXY}",
-            "HTTPS_PROXY": "${localEnv:HTTP_PROXY}",
-            "NO_PROXY": "${localEnv:NO_PROXY}"
-        }
     },
     "postCreateCommand": "npm install -g @devcontainers/cli",
     "customizations": {

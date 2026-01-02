@@ -6,15 +6,9 @@ DOCBUILDER_VERSION="${DOCBUILDER_VERSION:-0.1.46}"
 HUGO_VERSION="${HUGO_VERSION:-0.154.1}"
 INSTALL_DIR="/usr/local/bin"
 
-# Alternative download sources for resilience
-DOCBUILDER_URLS=(
-    "https://github.com/inful/docbuilder/releases/download/v${DOCBUILDER_VERSION}/docbuilder_linux_ARCH.tar.gz"
-    "https://releases.github.com/inful/docbuilder/v${DOCBUILDER_VERSION}/docbuilder_linux_ARCH.tar.gz"
-)
-
-HUGO_URLS=(
-    "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-ARCH.tar.gz"
-)
+# Proxy settings from feature options
+HTTP_PROXY="${HTTPPROXY:-${http_proxy:-}}"
+HTTPS_PROXY="${HTTPSPROXY:-${https_proxy:-}}"
 
 # Color codes for output
 RED='\033[0;31m'
@@ -82,17 +76,12 @@ install_docbuilder() {
     local curl_opts="-fSsL --connect-timeout 30 --max-time 120 --retry 2"
     
     # Add proxy settings if available
-    if [ -n "$http_proxy" ] || [ -n "$HTTP_PROXY" ]; then
-        local proxy="${http_proxy:-$HTTP_PROXY}"
-        curl_opts="$curl_opts -x $proxy"
-        print_info "Using HTTP proxy: $proxy"
+    if [ -n "$HTTP_PROXY" ]; then
+        curl_opts="$curl_opts -x $HTTP_PROXY"
+        print_info "Using HTTP proxy: $HTTP_PROXY"
     fi
-    if [ -n "$https_proxy" ] || [ -n "$HTTPS_PROXY" ]; then
-        local proxy="${https_proxy:-$HTTPS_PROXY}"
-        # Only set https proxy if different from http proxy
-        if [ "$proxy" != "${http_proxy:-$HTTP_PROXY}" ]; then
-            curl_opts="$curl_opts -x $proxy"
-        fi
+    if [ -n "$HTTPS_PROXY" ] && [ "$HTTPS_PROXY" != "$HTTP_PROXY" ]; then
+        curl_opts="$curl_opts -x $HTTPS_PROXY"
     fi
     
     while [ $attempt -le $max_attempts ]; do
@@ -167,17 +156,12 @@ install_hugo() {
     local curl_opts="-fSsL --connect-timeout 30 --max-time 120 --retry 2"
     
     # Add proxy settings if available
-    if [ -n "$http_proxy" ] || [ -n "$HTTP_PROXY" ]; then
-        local proxy="${http_proxy:-$HTTP_PROXY}"
-        curl_opts="$curl_opts -x $proxy"
-        print_info "Using HTTP proxy: $proxy"
+    if [ -n "$HTTP_PROXY" ]; then
+        curl_opts="$curl_opts -x $HTTP_PROXY"
+        print_info "Using HTTP proxy: $HTTP_PROXY"
     fi
-    if [ -n "$https_proxy" ] || [ -n "$HTTPS_PROXY" ]; then
-        local proxy="${https_proxy:-$HTTPS_PROXY}"
-        # Only set https proxy if different from http proxy
-        if [ "$proxy" != "${http_proxy:-$HTTP_PROXY}" ]; then
-            curl_opts="$curl_opts -x $proxy"
-        fi
+    if [ -n "$HTTPS_PROXY" ] && [ "$HTTPS_PROXY" != "$HTTP_PROXY" ]; then
+        curl_opts="$curl_opts -x $HTTPS_PROXY"
     fi
     
     while [ $attempt -le $max_attempts ]; do

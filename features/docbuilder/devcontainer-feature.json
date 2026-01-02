@@ -35,6 +35,16 @@
             ],
             "default": "0.154.1",
             "description": "Version of hugo (extended) to install."
+        },
+        "httpProxy": {
+            "type": "string",
+            "default": "",
+            "description": "HTTP proxy URL (e.g., http://proxy.example.com:3128)"
+        },
+        "httpsProxy": {
+            "type": "string",
+            "default": "",
+            "description": "HTTPS proxy URL (e.g., http://proxy.example.com:3128)"
         }
     }
 }
