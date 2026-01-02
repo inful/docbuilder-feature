@@ -1,8 +1,18 @@
 #!/bin/bash
 set -e
 
+# ⚠️ DEPRECATED: This script is no longer used.
+# 
+# The feature now downloads binaries during container build (install.sh)
+# rather than bundling them in the OCI image. This approach:
+# - Reduces OCI image size
+# - Supports proxy configuration
+# - Enables version checking to skip redundant downloads
+#
+# This script is kept for reference only.
+
 # Script to download binaries for both architectures
-# This is used by CI before publishing the feature
+# This was used by CI before publishing the feature (old approach)
 
 DOCBUILDER_VERSION="${1:-0.1.46}"
 HUGO_VERSION="${2:-0.154.1}"
