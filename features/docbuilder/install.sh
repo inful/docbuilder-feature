@@ -151,23 +151,37 @@ install_go() {
 
 # Download and install docbuilder
 install_docbuilder() {
+    local version="$DOCBUILDER_VERSION"
+    
+    # Resolve "latest" to actual version number
+    if [ "$version" = "latest" ]; then
+        print_info "Resolving 'latest' version for docbuilder..."
+        # shellcheck disable=SC2086
+        version=$(curl $CURL_OPTS "https://api.github.com/repos/inful/docbuilder/releases/latest" | grep -oP '"tag_name":\s*"v?\K[0-9.]+' || echo "")
+        if [ -z "$version" ]; then
+            print_error "Failed to resolve 'latest' version for docbuilder"
+            return 1
+        fi
+        print_info "Resolved to version: $version"
+    fi
+    
     # Check if docbuilder is already installed with the correct version
     if command -v docbuilder > /dev/null 2>&1; then
         local installed_version=$(docbuilder --version 2>&1 | head -n1 | grep -oP 'v?\K[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
-        if [ "$installed_version" = "$DOCBUILDER_VERSION" ]; then
-            print_status "docbuilder v${DOCBUILDER_VERSION} is already installed"
+        if [ "$installed_version" = "$version" ]; then
+            print_status "docbuilder v${version} is already installed"
             return 0
         else
-            print_info "docbuilder v${installed_version} is installed, but v${DOCBUILDER_VERSION} is requested. Updating..."
+            print_info "docbuilder v${installed_version} is installed, but v${version} is requested. Updating..."
         fi
     fi
     
     local arch=$(detect_architecture)
-    local download_url="https://github.com/inful/docbuilder/releases/download/v${DOCBUILDER_VERSION}/docbuilder_linux_${arch}.tar.gz"
+    local download_url="https://github.com/inful/docbuilder/releases/download/v${version}/docbuilder_linux_${arch}.tar.gz"
     local temp_dir=$(mktemp -d)
     trap "rm -rf '$temp_dir'" RETURN
     
-    print_info "Installing docbuilder v${DOCBUILDER_VERSION} (${arch})..."
+    print_info "Installing docbuilder v${version} (${arch})..."
     print_info "URL: $download_url"
     
     # Download with retries
@@ -248,28 +262,42 @@ install_docbuilder() {
 
 # Download and install hugo (extended)
 install_hugo() {
+    local version="$HUGO_VERSION"
+    
+    # Resolve "latest" to actual version number
+    if [ "$version" = "latest" ]; then
+        print_info "Resolving 'latest' version for hugo..."
+        # shellcheck disable=SC2086
+        version=$(curl $CURL_OPTS "https://api.github.com/repos/gohugoio/hugo/releases/latest" | grep -oP '"tag_name":\s*"v?\K[0-9.]+' || echo "")
+        if [ -z "$version" ]; then
+            print_error "Failed to resolve 'latest' version for hugo"
+            return 1
+        fi
+        print_info "Resolved to version: $version"
+    fi
+    
     # Check if hugo is already installed with the correct version
     if command -v hugo > /dev/null 2>&1; then
         local installed_version=$(hugo version 2>&1 | grep -oP 'v?\K[0-9]+\.[0-9]+\.[0-9]+' | head -n1 || echo "unknown")
-        if [ "$installed_version" = "$HUGO_VERSION" ]; then
+        if [ "$installed_version" = "$version" ]; then
             # Also check if it's the extended version
             if hugo version 2>&1 | grep -q "extended"; then
-                print_status "hugo (extended) v${HUGO_VERSION} is already installed"
+                print_status "hugo (extended) v${version} is already installed"
                 return 0
             else
                 print_info "hugo v${installed_version} is installed but not the extended version. Updating..."
             fi
         else
-            print_info "hugo v${installed_version} is installed, but v${HUGO_VERSION} is requested. Updating..."
+            print_info "hugo v${installed_version} is installed, but v${version} is requested. Updating..."
         fi
     fi
     
     local arch=$(detect_architecture)
-    local download_url="https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-${arch}.tar.gz"
+    local download_url="https://github.com/gohugoio/hugo/releases/download/v${version}/hugo_extended_${version}_linux-${arch}.tar.gz"
     local temp_dir=$(mktemp -d)
     trap "rm -rf '$temp_dir'" RETURN
     
-    print_info "Installing hugo (extended) v${HUGO_VERSION} (${arch})..."
+    print_info "Installing hugo (extended) v${version} (${arch})..."
     print_info "URL: $download_url"
     
     # Download with retries
