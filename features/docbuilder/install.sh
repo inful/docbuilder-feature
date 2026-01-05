@@ -386,104 +386,56 @@ setup_auto_preview() {
     if [ "$AUTO_PREVIEW" = "true" ]; then
         print_info "Setting up auto-preview..."
         
-        # Create startup script
+        # Get the directory where this script is located
+        local script_dir="$(cd "$(dirname "$0")" && pwd)"
+        
+        # Install startup script with variable substitution
         local startup_script="/usr/local/share/docbuilder-preview.sh"
-        sudo -E tee "$startup_script" > /dev/null <<EOF
-#!/bin/bash
-# Auto-start docbuilder preview server
-
-# Configuration from feature options
-DOCS_DIR="${DOCS_DIR}"
-PREVIEW_PORT="${PREVIEW_PORT}"
-LIVERELOAD_PORT="${LIVERELOAD_PORT}"
-VERBOSE="${VERBOSE}"
-
-# Ensure Go is in PATH
-export PATH=\$PATH:/usr/local/go/bin
-
-# Wait a moment for container to fully initialize
-sleep 2
-
-# Find the workspace directory (typically /workspaces/*)
-WORKSPACE_DIR="/workspaces"
-if [ -d "\$WORKSPACE_DIR" ]; then
-    cd "\$WORKSPACE_DIR" || exit 1
-    
-    # Find first subdirectory
-    FIRST_DIR=\$(find "\$WORKSPACE_DIR" -mindepth 1 -maxdepth 1 -type d | head -n 1)
-    if [ -n "\$FIRST_DIR" ]; then
-        cd "\$FIRST_DIR" || exit 1
-    fi
-fi
-
-# Create docs directory if it doesn't exist
-if [ ! -d "\$DOCS_DIR" ]; then
-    echo "Creating \$DOCS_DIR directory..."
-    mkdir -p "\$DOCS_DIR"
-fi
-
-# Check if docbuilder is available
-if ! command -v docbuilder > /dev/null 2>&1; then
-    echo "docbuilder not found in PATH"
-    exit 1
-fi
-
-# Build command with options
-CMD="docbuilder preview --docs-dir \$DOCS_DIR --port \$PREVIEW_PORT"
-if [ "\$LIVERELOAD_PORT" != "0" ]; then
-    CMD="\$CMD --livereload-port \$LIVERELOAD_PORT"
-fi
-if [ "\$VERBOSE" = "true" ]; then
-    CMD="\$CMD --verbose"
-fi
-
-echo "Starting docbuilder preview server in \$(pwd)..."
-echo "Command: \$CMD"
-eval "\$CMD"
-EOF
-        
-        sudo -E chmod +x "$startup_script"
-        
-        # Add to bashrc for bash users
-        local bashrc_snippet="\\n# Auto-start docbuilder preview\\nif [ -z \"\$DOCBUILDER_PREVIEW_STARTED\" ]; then\\n    export DOCBUILDER_PREVIEW_STARTED=1\\n    if command -v docbuilder > /dev/null 2>&1 && [ -d \"/workspaces\" ]; then\\n        # Check if docbuilder is already running\\n        if pgrep -f 'docbuilder preview' > /dev/null 2>&1; then\\n            echo \"DocBuilder preview server is already running\"\\n        else\\n            for ws_dir in /workspaces/*; do\\n                if [ -d \"\$ws_dir\" ]; then\\n                    cd \"\$ws_dir\" || continue\\n                    DOCS_DIR=\"${DOCS_DIR}\"\\n                    [ ! -d \"\$DOCS_DIR\" ] && mkdir -p \"\$DOCS_DIR\"\\n                    CMD=\"docbuilder preview --docs-dir \$DOCS_DIR --port ${PREVIEW_PORT}\"\\n                    [ \"${LIVERELOAD_PORT}\" != \"0\" ] && CMD=\"\$CMD --livereload-port ${LIVERELOAD_PORT}\"\\n                    [ \"${VERBOSE}\" = \"true\" ] && CMD=\"\$CMD --verbose\"\\n                    [ \"${VSCODE_LINKS}\" = \"true\" ] && CMD=\"\$CMD --vscode\"\\n                    (PATH=\"\$PATH:/usr/local/go/bin\" nohup \$CMD > /tmp/docbuilder-preview.log 2>&1 &)\\n                    echo \"DocBuilder preview server started in \$ws_dir. Logs: /tmp/docbuilder-preview.log\"\\n                    break\\n                fi\\n            done\\n        fi\\n    fi\\nfi\\n"
-        
-        # Add to /etc/bash.bashrc for bash users
-        if ! grep -q "DOCBUILDER_PREVIEW_STARTED" /etc/bash.bashrc 2>/dev/null; then
-            echo -e "$bashrc_snippet" | sudo -E tee -a /etc/bash.bashrc > /dev/null
+        if [ -f "$script_dir/preview-startup.sh" ]; then
+            sed -e "s|__DOCS_DIR__|${DOCS_DIR}|g" \
+                -e "s|__PREVIEW_PORT__|${PREVIEW_PORT}|g" \
+                -e "s|__LIVERELOAD_PORT__|${LIVERELOAD_PORT}|g" \
+                -e "s|__VERBOSE__|${VERBOSE}|g" \
+                "$script_dir/preview-startup.sh" | sudo -E tee "$startup_script" > /dev/null
+            sudo -E chmod +x "$startup_script"
+        else
+            print_error "preview-startup.sh not found in $script_dir"
+            return 1
         fi
         
-        # Add to fish config for fish shell users
+        # Install bash snippet with variable substitution
+        if [ -f "$script_dir/bashrc-snippet.sh" ]; then
+            if ! grep -q "DOCBUILDER_PREVIEW_STARTED" /etc/bash.bashrc 2>/dev/null; then
+                {
+                    echo ""
+                    sed -e "s|__DOCS_DIR__|${DOCS_DIR}|g" \
+                        -e "s|__PREVIEW_PORT__|${PREVIEW_PORT}|g" \
+                        -e "s|__LIVERELOAD_PORT__|${LIVERELOAD_PORT}|g" \
+                        -e "s|__VERBOSE__|${VERBOSE}|g" \
+                        -e "s|__VSCODE_LINKS__|${VSCODE_LINKS}|g" \
+                        "$script_dir/bashrc-snippet.sh"
+                } | sudo -E tee -a /etc/bash.bashrc > /dev/null
+            fi
+        else
+            print_error "bashrc-snippet.sh not found in $script_dir"
+            return 1
+        fi
+        
+        # Install fish snippet with variable substitution
         local fish_config_dir="/etc/fish/conf.d"
         if [ -d "$fish_config_dir" ] || command -v fish > /dev/null 2>&1; then
             sudo -E mkdir -p "$fish_config_dir"
-            sudo -E tee "$fish_config_dir/docbuilder-preview.fish" > /dev/null <<FISHEOF
-# Auto-start docbuilder preview
-if not set -q DOCBUILDER_PREVIEW_STARTED
-    set -gx DOCBUILDER_PREVIEW_STARTED 1
-    if command -v docbuilder > /dev/null 2>&1; and test -d "/workspaces"
-        # Check if docbuilder is already running
-        if not pgrep -f 'docbuilder preview' > /dev/null 2>&1
-            for ws_dir in /workspaces/*
-                if test -d "\$ws_dir"
-                    cd "\$ws_dir"
-                    set DOCS_DIR "$DOCS_DIR"
-                    test -d "\$DOCS_DIR"; or mkdir -p "\$DOCS_DIR"
-                    set CMD "docbuilder preview --docs-dir \$DOCS_DIR --port $PREVIEW_PORT"
-                    test "$LIVERELOAD_PORT" != "0"; and set CMD "\$CMD --livereload-port $LIVERELOAD_PORT"
-                    test "$VERBOSE" = "true"; and set CMD "\$CMD --verbose"
-                    test "$VSCODE_LINKS" = "true"; and set CMD "\$CMD --vscode"
-                    set -l path_string (string join : \$PATH):/usr/local/go/bin
-                    env PATH=\$path_string sh -c "nohup \$CMD > /tmp/docbuilder-preview.log 2>&1 &"
-                    echo "DocBuilder preview server started in \$ws_dir. Logs: /tmp/docbuilder-preview.log"
-                    break
-                end
-            end
-        else
-            echo "DocBuilder preview server is already running"
-        end
-    end
-end
-FISHEOF
+            if [ -f "$script_dir/fish-snippet.fish" ]; then
+                sed -e "s|__DOCS_DIR__|${DOCS_DIR}|g" \
+                    -e "s|__PREVIEW_PORT__|${PREVIEW_PORT}|g" \
+                    -e "s|__LIVERELOAD_PORT__|${LIVERELOAD_PORT}|g" \
+                    -e "s|__VERBOSE__|${VERBOSE}|g" \
+                    -e "s|__VSCODE_LINKS__|${VSCODE_LINKS}|g" \
+                    "$script_dir/fish-snippet.fish" | sudo -E tee "$fish_config_dir/docbuilder-preview.fish" > /dev/null
+            else
+                print_error "fish-snippet.fish not found in $script_dir"
+                return 1
+            fi
         fi
         
         print_status "Auto-preview configured (bash/fish shells)"
