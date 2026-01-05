@@ -51,7 +51,7 @@
         "livereloadPort": {
             "type": "string",
             "default": "0",
-            "description": "Port for LiveReload server (0 = auto, defaults to previewPort+3)."
+            "description": "Port for LiveReload server (0 = auto-calculate as previewPort+3)."
         },
         "verbose": {
             "type": "boolean",

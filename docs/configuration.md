@@ -102,7 +102,7 @@ The main HTTP port where the documentation preview will be served. Make sure to 
 }
 ```
 
-**Note:** DocBuilder uses the preview port and the LiveReload port (preview port + 3).
+**Note:** When running multiple workspace instances, use different ports for each project to avoid collisions. See the [Usage Guide](usage.md#running-multiple-workspace-instances) for recommended port allocation strategies.
 
 ### `livereloadPort`
 

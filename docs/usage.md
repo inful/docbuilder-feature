@@ -46,6 +46,46 @@ DocBuilder uses two ports that should be forwarded to access the preview server:
 - **1316**: Preview server (main web interface)
 - **1319**: LiveReload server (port + 3 by default, customizable with `livereloadPort`)
 
+### Running Multiple Workspace Instances
+
+If you need to run multiple workspace instances simultaneously (e.g., different projects or branches), configure unique ports for each to avoid collisions:
+
+**Project 1 (e.g., `my-docs`):**
+```json
+{
+    "features": {
+        "ghcr.io/inful/docbuilder-feature/docbuilder:latest": {
+            "previewPort": "1316",
+            "livereloadPort": "1319"
+        }
+    },
+    "forwardPorts": [1316, 1319]
+}
+```
+
+**Project 2 (e.g., `my-other-docs`):**
+```json
+{
+    "features": {
+        "ghcr.io/inful/docbuilder-feature/docbuilder:latest": {
+            "previewPort": "2316",
+            "livereloadPort": "2319"
+        }
+    },
+    "forwardPorts": [2316, 2319]
+}
+```
+
+**Recommended port allocation strategy:**
+Use a consistent port scheme based on project ID to avoid manual tracking:
+- Preview: `55000 + project_id`
+- LiveReload: `56000 + project_id`
+
+For example:
+- Project 1: ports 55001, 56001
+- Project 2: ports 55002, 56002
+- Project 3: ports 55003, 56003
+
 ## Configuration Examples
 
 ### Custom Versions
@@ -85,11 +125,11 @@ Pin to specific versions:
             "autoPreview": true,
             "docsDir": "documentation",
             "previewPort": "8080",
-            "livereloadPort": "9000",
+            "livereloadPort": "8083",
             "verbose": true
         }
     },
-    "forwardPorts": [8080, 9000]
+    "forwardPorts": [8080, 8083]
 }
 ```
 
