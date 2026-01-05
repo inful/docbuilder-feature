@@ -15,6 +15,7 @@ GO_VERSION="1.25.5"
 AUTO_PREVIEW="${AUTOPREVIEW:-${autoPreview:-true}}"
 DOCS_DIR="${DOCSDIR:-${docsDir:-docs}}"
 PREVIEW_PORT="${PREVIEWPORT:-${previewPort:-1316}}"
+LIVERELOAD_PORT="${LIVERELOADPORT:-${livereloadPort:-0}}"
 VERBOSE="${VERBOSE:-${verbose:-false}}"
 INSTALL_DIR="/usr/local/bin"
 CURL_OPTS="-fSsL --connect-timeout 30 --max-time 120 --retry 2"
@@ -390,6 +391,7 @@ setup_auto_preview() {
 # Configuration from feature options
 DOCS_DIR="${DOCS_DIR}"
 PREVIEW_PORT="${PREVIEW_PORT}"
+LIVERELOAD_PORT="${LIVERELOAD_PORT}"
 VERBOSE="${VERBOSE}"
 
 # Ensure Go is in PATH
@@ -424,6 +426,9 @@ fi
 
 # Build command with options
 CMD="docbuilder preview --docs-dir \$DOCS_DIR --port \$PREVIEW_PORT"
+if [ "\$LIVERELOAD_PORT" != "0" ]; then
+    CMD="\$CMD --livereload-port \$LIVERELOAD_PORT"
+fi
 if [ "\$VERBOSE" = "true" ]; then
     CMD="\$CMD --verbose"
 fi
@@ -457,7 +462,7 @@ WantedBy=default.target
 EOF
         
         # Add to bashrc to start the service on shell start
-        local bashrc_snippet="\\n# Auto-start docbuilder preview\\nif [ -z \"\$DOCBUILDER_PREVIEW_STARTED\" ]; then\\n    export DOCBUILDER_PREVIEW_STARTED=1\\n    if command -v docbuilder > /dev/null 2>&1 && [ -d \"/workspaces\" ]; then\\n        # Check if docbuilder is already running\\n        if pgrep -f 'docbuilder preview' > /dev/null 2>&1; then\\n            echo \"DocBuilder preview server is already running\"\\n        else\\n            for ws_dir in /workspaces/*; do\\n                if [ -d \"\$ws_dir\" ]; then\\n                    cd \"\$ws_dir\" || continue\\n                    DOCS_DIR=\"${DOCS_DIR}\"\\n                    [ ! -d \"\$DOCS_DIR\" ] && mkdir -p \"\$DOCS_DIR\"\\n                    CMD=\"docbuilder preview --docs-dir \$DOCS_DIR --port ${PREVIEW_PORT}\"\\n                    [ \"${VERBOSE}\" = \"true\" ] && CMD=\"\$CMD --verbose\"\\n                    (export PATH=\$PATH:/usr/local/go/bin && nohup \$CMD > /tmp/docbuilder-preview.log 2>&1 &)\\n                    echo \"DocBuilder preview server started in \$ws_dir. Logs: /tmp/docbuilder-preview.log\"\\n                    break\\n                fi\\n            done\\n        fi\\n    fi\\nfi\\n"
+        local bashrc_snippet="\\n# Auto-start docbuilder preview\\nif [ -z \"\$DOCBUILDER_PREVIEW_STARTED\" ]; then\\n    export DOCBUILDER_PREVIEW_STARTED=1\\n    if command -v docbuilder > /dev/null 2>&1 && [ -d \"/workspaces\" ]; then\\n        # Check if docbuilder is already running\\n        if pgrep -f 'docbuilder preview' > /dev/null 2>&1; then\\n            echo \"DocBuilder preview server is already running\"\\n        else\\n            for ws_dir in /workspaces/*; do\\n                if [ -d \"\$ws_dir\" ]; then\\n                    cd \"\$ws_dir\" || continue\\n                    DOCS_DIR=\"${DOCS_DIR}\"\\n                    [ ! -d \"\$DOCS_DIR\" ] && mkdir -p \"\$DOCS_DIR\"\\n                    CMD=\"docbuilder preview --docs-dir \$DOCS_DIR --port ${PREVIEW_PORT}\"\\n                    [ \"${LIVERELOAD_PORT}\" != \"0\" ] && CMD=\"\$CMD --livereload-port ${LIVERELOAD_PORT}\"\\n                    [ \"${VERBOSE}\" = \"true\" ] && CMD=\"\$CMD --verbose\"\\n                    (export PATH=\$PATH:/usr/local/go/bin && nohup \$CMD > /tmp/docbuilder-preview.log 2>&1 &)\\n                    echo \"DocBuilder preview server started in \$ws_dir. Logs: /tmp/docbuilder-preview.log\"\\n                    break\\n                fi\\n            done\\n        fi\\n    fi\\nfi\\n"
         
         # Add to /etc/bash.bashrc for all users
         if ! grep -q "DOCBUILDER_PREVIEW_STARTED" /etc/bash.bashrc 2>/dev/null; then

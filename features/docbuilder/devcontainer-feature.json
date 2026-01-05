@@ -1,6 +1,6 @@
 {
     "id": "docbuilder",
-    "version": "0.3.9",
+    "version": "0.3.10",
     "name": "DocBuilder and Hugo Extended",
     "documentationURL": "https://github.com/inful/docbuilder-feature",
     "description": "Installs docbuilder and hugo extended binaries.",
@@ -47,6 +47,11 @@
             "type": "string",
             "default": "1316",
             "description": "Port for docbuilder preview server."
+        },
+        "livereloadPort": {
+            "type": "string",
+            "default": "0",
+            "description": "Port for LiveReload server (0 = auto, defaults to previewPort+3)."
         },
         "verbose": {
             "type": "boolean",
