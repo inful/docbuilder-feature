@@ -462,11 +462,11 @@ if not set -q DOCBUILDER_PREVIEW_STARTED
             for ws_dir in /workspaces/*
                 if test -d "$ws_dir"
                     cd "$ws_dir"
-                    set DOCS_DIR "${DOCS_DIR}"
+                    set DOCS_DIR "$DOCS_DIR"
                     test -d "$DOCS_DIR"; or mkdir -p "$DOCS_DIR"
-                    set CMD "docbuilder preview --docs-dir $DOCS_DIR --port ${PREVIEW_PORT}"
-                    test "${LIVERELOAD_PORT}" != "0"; and set CMD "$CMD --livereload-port ${LIVERELOAD_PORT}"
-                    test "${VERBOSE}" = "true"; and set CMD "$CMD --verbose"
+                    set CMD "docbuilder preview --docs-dir $DOCS_DIR --port $PREVIEW_PORT"
+                    test "$LIVERELOAD_PORT" != "0"; and set CMD "$CMD --livereload-port $LIVERELOAD_PORT"
+                    test "$VERBOSE" = "true"; and set CMD "$CMD --verbose"
                     fish -c "set -gx PATH \$PATH /usr/local/go/bin; nohup $CMD > /tmp/docbuilder-preview.log 2>&1 &"
                     echo "DocBuilder preview server started in $ws_dir. Logs: /tmp/docbuilder-preview.log"
                     break
