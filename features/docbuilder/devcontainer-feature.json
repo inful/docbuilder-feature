@@ -1,6 +1,6 @@
 {
     "id": "docbuilder",
-    "version": "0.3.17",
+    "version": "0.3.18",
     "name": "DocBuilder and Hugo Extended",
     "documentationURL": "https://github.com/inful/docbuilder-feature",
     "description": "Installs docbuilder and hugo extended binaries.",
@@ -57,6 +57,11 @@
             "type": "boolean",
             "default": false,
             "description": "Enable verbose output for docbuilder preview."
+        },
+        "vscodeLinks": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable VS Code edit links in preview (opens files in editor via /_edit/ handler)."
         },
         "httpProxy": {
             "type": "string",
