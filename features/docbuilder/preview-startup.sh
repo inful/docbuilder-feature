@@ -12,6 +12,11 @@ VSCODE_LINKS="__VSCODE_LINKS__"
 # Ensure Go is in PATH
 export PATH=$PATH:/usr/local/go/bin
 
+# Preserve VS Code IPC socket for edit links
+if [ -n "$VSCODE_IPC_HOOK_CLI" ]; then
+    export VSCODE_IPC_HOOK_CLI
+fi
+
 # Find the workspace directory (typically /workspaces/*)
 for ws_dir in /workspaces/*; do
     if [ -d "$ws_dir" ]; then
@@ -32,8 +37,8 @@ for ws_dir in /workspaces/*; do
         [ "$VERBOSE" = "true" ] && CMD="$CMD --verbose"
         [ "$VSCODE_LINKS" = "true" ] && CMD="$CMD --vscode"
         
-        # Run in background
-        nohup $CMD > /tmp/docbuilder-preview.log 2>&1 &
+        # Run in background, preserving environment
+        env VSCODE_IPC_HOOK_CLI="$VSCODE_IPC_HOOK_CLI" nohup $CMD > /tmp/docbuilder-preview.log 2>&1 &
         echo "DocBuilder preview server started in $ws_dir. Logs: /tmp/docbuilder-preview.log"
         exit 0
     fi
