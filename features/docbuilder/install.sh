@@ -452,7 +452,7 @@ EOF
         local fish_config_dir="/etc/fish/conf.d"
         if [ -d "$fish_config_dir" ] || command -v fish > /dev/null 2>&1; then
             sudo -E mkdir -p "$fish_config_dir"
-            sudo -E tee "$fish_config_dir/docbuilder-preview.fish" > /dev/null <<'FISHEOF'
+            sudo -E tee "$fish_config_dir/docbuilder-preview.fish" > /dev/null <<FISHEOF
 # Auto-start docbuilder preview
 if not set -q DOCBUILDER_PREVIEW_STARTED
     set -gx DOCBUILDER_PREVIEW_STARTED 1
@@ -460,15 +460,15 @@ if not set -q DOCBUILDER_PREVIEW_STARTED
         # Check if docbuilder is already running
         if not pgrep -f 'docbuilder preview' > /dev/null 2>&1
             for ws_dir in /workspaces/*
-                if test -d "$ws_dir"
-                    cd "$ws_dir"
+                if test -d "\$ws_dir"
+                    cd "\$ws_dir"
                     set DOCS_DIR "$DOCS_DIR"
-                    test -d "$DOCS_DIR"; or mkdir -p "$DOCS_DIR"
-                    set CMD "docbuilder preview --docs-dir $DOCS_DIR --port $PREVIEW_PORT"
-                    test "$LIVERELOAD_PORT" != "0"; and set CMD "$CMD --livereload-port $LIVERELOAD_PORT"
-                    test "$VERBOSE" = "true"; and set CMD "$CMD --verbose"
-                    fish -c "set -gx PATH \$PATH /usr/local/go/bin; nohup $CMD > /tmp/docbuilder-preview.log 2>&1 &"
-                    echo "DocBuilder preview server started in $ws_dir. Logs: /tmp/docbuilder-preview.log"
+                    test -d "\$DOCS_DIR"; or mkdir -p "\$DOCS_DIR"
+                    set CMD "docbuilder preview --docs-dir \$DOCS_DIR --port $PREVIEW_PORT"
+                    test "$LIVERELOAD_PORT" != "0"; and set CMD "\$CMD --livereload-port $LIVERELOAD_PORT"
+                    test "$VERBOSE" = "true"; and set CMD "\$CMD --verbose"
+                    fish -c "set -gx PATH \\\$PATH /usr/local/go/bin; nohup \$CMD > /tmp/docbuilder-preview.log 2>&1 &"
+                    echo "DocBuilder preview server started in \$ws_dir. Logs: /tmp/docbuilder-preview.log"
                     break
                 end
             end

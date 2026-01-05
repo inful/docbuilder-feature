@@ -1,6 +1,6 @@
 {
     "id": "docbuilder",
-    "version": "0.3.14",
+    "version": "0.3.15",
     "name": "DocBuilder and Hugo Extended",
     "documentationURL": "https://github.com/inful/docbuilder-feature",
     "description": "Installs docbuilder and hugo extended binaries.",
