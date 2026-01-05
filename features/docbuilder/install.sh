@@ -381,7 +381,7 @@ install_hugo() {
     print_status "hugo installed successfully"
 }
 
-# Setup auto-preview on container start
+# Setup auto-preview script
 setup_auto_preview() {
     if [ "$AUTO_PREVIEW" = "true" ]; then
         print_info "Setting up auto-preview..."
@@ -399,50 +399,12 @@ setup_auto_preview() {
                 -e "s|__VSCODE_LINKS__|${VSCODE_LINKS}|g" \
                 "$script_dir/preview-startup.sh" | sudo -E tee "$startup_script" > /dev/null
             sudo -E chmod +x "$startup_script"
+            print_status "Auto-preview script installed"
+            print_info "Preview will start via postAttachCommand lifecycle hook"
         else
             print_error "preview-startup.sh not found in $script_dir"
             return 1
         fi
-        
-        # Install bash snippet with variable substitution
-        if [ -f "$script_dir/bashrc-snippet.sh" ]; then
-            if ! grep -q "DOCBUILDER_PREVIEW_STARTED" /etc/bash.bashrc 2>/dev/null; then
-                {
-                    echo ""
-                    sed -e "s|__DOCS_DIR__|${DOCS_DIR}|g" \
-                        -e "s|__PREVIEW_PORT__|${PREVIEW_PORT}|g" \
-                        -e "s|__LIVERELOAD_PORT__|${LIVERELOAD_PORT}|g" \
-                        -e "s|__VERBOSE__|${VERBOSE}|g" \
-                        -e "s|__VSCODE_LINKS__|${VSCODE_LINKS}|g" \
-                        "$script_dir/bashrc-snippet.sh"
-                } | sudo -E tee -a /etc/bash.bashrc > /dev/null
-            fi
-        else
-            print_error "bashrc-snippet.sh not found in $script_dir"
-            return 1
-        fi
-        
-        # Install fish snippet with variable substitution
-        local fish_config_dir="/etc/fish/conf.d"
-        if [ -d "$fish_config_dir" ] || command -v fish > /dev/null 2>&1; then
-            sudo -E mkdir -p "$fish_config_dir"
-            if [ -f "$script_dir/fish-snippet.fish" ]; then
-                sed -e "s|__DOCS_DIR__|${DOCS_DIR}|g" \
-                    -e "s|__PREVIEW_PORT__|${PREVIEW_PORT}|g" \
-                    -e "s|__LIVERELOAD_PORT__|${LIVERELOAD_PORT}|g" \
-                    -e "s|__VERBOSE__|${VERBOSE}|g" \
-                    -e "s|__VSCODE_LINKS__|${VSCODE_LINKS}|g" \
-                    "$script_dir/fish-snippet.fish" | sudo -E tee "$fish_config_dir/docbuilder-preview.fish" > /dev/null
-            else
-                print_error "fish-snippet.fish not found in $script_dir"
-                return 1
-            fi
-        fi
-        
-        print_status "Auto-preview configured (bash/fish shells)"
-        print_info "Preview starts when you open a terminal in the container"
-        print_info "For other shells, add to your devcontainer.json:"
-        print_info '  "postCreateCommand": "docbuilder preview --docs-dir docs --port ${PREVIEW_PORT} > /tmp/docbuilder-preview.log 2>&1 &"'
     else
         print_info "Auto-preview disabled"
     fi

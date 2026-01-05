@@ -1,6 +1,6 @@
 {
     "id": "docbuilder",
-    "version": "0.3.24",
+    "version": "0.4.0",
     "name": "DocBuilder and Hugo Extended",
     "documentationURL": "https://github.com/inful/docbuilder-feature",
     "description": "Installs docbuilder and hugo extended binaries.",
@@ -84,5 +84,6 @@
             "settings": {},
             "extensions": []
         }
-    }
+    },
+    "postAttachCommand": "if [ \"${autoPreview:-true}\" = \"true\" ] && [ -f /usr/local/share/docbuilder-preview.sh ]; then /usr/local/share/docbuilder-preview.sh; fi"
 }
