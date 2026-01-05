@@ -17,8 +17,8 @@ Add the feature to your `devcontainer.json`:
 ```
 
 This installs:
-- Go v1.23.4
-- DocBuilder v0.1.46 (default)
+- Go v1.25.5
+- DocBuilder v0.5.0 (default)
 - Hugo Extended v0.154.1 (default)
 - Auto-start preview server on container startup
 
@@ -44,7 +44,7 @@ DocBuilder uses two ports that should be forwarded to access the preview server:
 
 **Ports:**
 - **1316**: Preview server (main web interface)
-- **1319**: LiveReload server
+- **1319**: LiveReload server (port + 3 by default, customizable with `livereloadPort`)
 
 ## Configuration Examples
 
@@ -83,10 +83,11 @@ DocBuilder uses two ports that should be forwarded to access the preview server:
             "autoPreview": true,
             "docsDir": "documentation",
             "previewPort": "8080",
+            "livereloadPort": "9000",
             "verbose": true
         }
     },
-    "forwardPorts": [8080, 8083]
+    "forwardPorts": [8080, 9000]
 }
 ```
 

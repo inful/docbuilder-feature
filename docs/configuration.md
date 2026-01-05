@@ -7,11 +7,11 @@ Complete reference for all configuration options available in the DocBuilder Dev
 ### `docbuilderVersion`
 
 - **Type:** `string`
-- **Default:** `"0.1.46"`
-- **Proposals:** `"0.1.46"`, `"latest"`
+- **Default:** `"0.5.0"`
+- **Proposals:** `"0.5.0"`, `"latest"`
 - **Description:** Version of DocBuilder to install
 
-Specify the exact version of DocBuilder to install, or use `"latest"` to always get the newest release.
+Specify the exact version of DocBuilder to install, or use `"latest"` to always get the newest release. When using `"latest"`, the feature queries the GitHub API to resolve the latest version number.
 
 **Example:**
 ```json
@@ -31,7 +31,7 @@ Specify the exact version of DocBuilder to install, or use `"latest"` to always 
 - **Proposals:** `"0.154.1"`, `"latest"`
 - **Description:** Version of Hugo Extended to install
 
-The feature installs the extended edition of Hugo, which includes additional features like SCSS processing.
+The feature installs the extended edition of Hugo, which includes additional features like SCSS processing. When using `"latest"`, the feature queries the GitHub API to resolve the latest version number.
 
 **Example:**
 ```json
@@ -103,6 +103,27 @@ The main HTTP port where the documentation preview will be served. Make sure to 
 ```
 
 **Note:** DocBuilder uses the preview port and the LiveReload port (preview port + 3).
+
+### `livereloadPort`
+
+- **Type:** `string`
+- **Default:** `"0"`
+- **Description:** Port for LiveReload server
+
+When set to `"0"` (default), DocBuilder automatically calculates the LiveReload port as `previewPort + 3`. Set to a specific port number if you need explicit control over the LiveReload port.
+
+**Example:**
+```json
+{
+    "features": {
+        "ghcr.io/inful/docbuilder-feature/docbuilder:latest": {
+            "previewPort": "8080",
+            "livereloadPort": "9000"
+        }
+    },
+    "forwardPorts": [8080, 9000]
+}
+```
 
 ### `verbose`
 
@@ -190,11 +211,12 @@ Here's a complete example showing all options:
     "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
     "features": {
         "ghcr.io/inful/docbuilder-feature/docbuilder:latest": {
-            "docbuilderVersion": "0.1.46",
+            "docbuilderVersion": "0.5.0",
             "hugoVersion": "0.154.1",
             "autoPreview": true,
             "docsDir": "docs",
             "previewPort": "1316",
+            "livereloadPort": "0",
             "verbose": false,
             "httpProxy": "${localEnv:HTTP_PROXY}",
             "httpsProxy": "${localEnv:HTTPS_PROXY}",
