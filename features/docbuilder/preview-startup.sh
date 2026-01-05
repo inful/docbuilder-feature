@@ -15,6 +15,9 @@ export PATH=$PATH:/usr/local/go/bin
 # Preserve VS Code IPC socket for edit links
 if [ -n "$VSCODE_IPC_HOOK_CLI" ]; then
     export VSCODE_IPC_HOOK_CLI
+    echo "DEBUG: VSCODE_IPC_HOOK_CLI=$VSCODE_IPC_HOOK_CLI" >&2
+else
+    echo "DEBUG: VSCODE_IPC_HOOK_CLI not set" >&2
 fi
 
 # Find the workspace directory (typically /workspaces/*)
