@@ -37,9 +37,31 @@ for ws_dir in /workspaces/*; do
         [ "$VERBOSE" = "true" ] && CMD="$CMD --verbose"
         [ "$VSCODE_LINKS" = "true" ] && CMD="$CMD --vscode"
         
-        # Run in background, preserving environment
-        env VSCODE_IPC_HOOK_CLI="$VSCODE_IPC_HOOK_CLI" nohup $CMD > /tmp/docbuilder-preview.log 2>&1 &
-        echo "DocBuilder preview server started in $ws_dir. Logs: /tmp/docbuilder-preview.log"
+        # Check if already running
+        if pgrep -f 'docbuilder preview' > /dev/null 2>&1; then
+            echo "DocBuilder preview server is already running"
+            exit 0
+        fi
+        
+        # Run in background, properly daemonized with setsid
+        # This ensures the process survives when the parent shell exits
+        setsid bash -c "
+            export PATH=\$PATH:/usr/local/go/bin
+            export VSCODE_IPC_HOOK_CLI='$VSCODE_IPC_HOOK_CLI'
+            cd '$ws_dir'
+            exec $CMD > /tmp/docbuilder-preview.log 2>&1
+        " </dev/null >/dev/null 2>&1 &
+        
+        # Give it a moment to start
+        sleep 1
+        
+        # Verify it started
+        if pgrep -f 'docbuilder preview' > /dev/null 2>&1; then
+            echo "DocBuilder preview server started in $ws_dir. Logs: /tmp/docbuilder-preview.log"
+        else
+            echo "Failed to start DocBuilder preview server. Check logs: /tmp/docbuilder-preview.log" >&2
+            exit 1
+        fi
         exit 0
     fi
 done
