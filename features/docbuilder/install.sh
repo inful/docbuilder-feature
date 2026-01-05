@@ -440,51 +440,19 @@ EOF
         
         sudo -E chmod +x "$startup_script"
         
-        # Create systemd system service for auto-preview
-        local service_file="/etc/systemd/system/docbuilder-preview.service"
-        sudo -E tee "$service_file" > /dev/null <<EOF
-[Unit]
-Description=DocBuilder Preview Server
-After=network.target
-
-[Service]
-Type=forking
-ExecStart=$startup_script
-Restart=on-failure
-RestartSec=5
-StandardOutput=append:/tmp/docbuilder-preview.log
-StandardError=append:/tmp/docbuilder-preview.log
-User=root
-WorkingDirectory=/workspaces
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-        # Enable and start the service if systemd is available
-        if command -v systemctl > /dev/null 2>&1; then
-            # Reload systemd to recognize the new service
-            sudo -E systemctl daemon-reload
-            # Enable service to start on boot
-            sudo -E systemctl enable docbuilder-preview.service
-            print_status "Auto-preview systemd service created and enabled"
-            print_info "Service will start automatically when container starts"
-            print_info "Use 'systemctl status docbuilder-preview' to check status"
-        else
-            print_info "systemd not available, falling back to shell-based auto-start"
-            
-            local bashrc_snippet="\\n# Auto-start docbuilder preview\\nif [ -z \"\$DOCBUILDER_PREVIEW_STARTED\" ]; then\\n    export DOCBUILDER_PREVIEW_STARTED=1\\n    if command -v docbuilder > /dev/null 2>&1 && [ -d \"/workspaces\" ]; then\\n        # Check if docbuilder is already running\\n        if pgrep -f 'docbuilder preview' > /dev/null 2>&1; then\\n            echo \"DocBuilder preview server is already running\"\\n        else\\n            for ws_dir in /workspaces/*; do\\n                if [ -d \"\$ws_dir\" ]; then\\n                    cd \"\$ws_dir\" || continue\\n                    DOCS_DIR=\"${DOCS_DIR}\"\\n                    [ ! -d \"\$DOCS_DIR\" ] && mkdir -p \"\$DOCS_DIR\"\\n                    CMD=\"docbuilder preview --docs-dir \$DOCS_DIR --port ${PREVIEW_PORT}\"\\n                    [ \"${LIVERELOAD_PORT}\" != \"0\" ] && CMD=\"\$CMD --livereload-port ${LIVERELOAD_PORT}\"\\n                    [ \"${VERBOSE}\" = \"true\" ] && CMD=\"\$CMD --verbose\"\\n                    (export PATH=\$PATH:/usr/local/go/bin && nohup \$CMD > /tmp/docbuilder-preview.log 2>&1 &)\\n                    echo \"DocBuilder preview server started in \$ws_dir. Logs: /tmp/docbuilder-preview.log\"\\n                    break\\n                fi\\n            done\\n        fi\\n    fi\\nfi\\n"
-            
-            # Add to /etc/bash.bashrc for bash users
-            if ! grep -q "DOCBUILDER_PREVIEW_STARTED" /etc/bash.bashrc 2>/dev/null; then
-                echo -e "$bashrc_snippet" | sudo -E tee -a /etc/bash.bashrc > /dev/null
-            fi
-            
-            # Add to fish config for fish shell users
-            local fish_config_dir="/etc/fish/conf.d"
-            if [ -d "$fish_config_dir" ] || command -v fish > /dev/null 2>&1; then
-                sudo -E mkdir -p "$fish_config_dir"
-                sudo -E tee "$fish_config_dir/docbuilder-preview.fish" > /dev/null <<'FISHEOF'
+        # Add to bashrc for bash users
+        local bashrc_snippet="\\n# Auto-start docbuilder preview\\nif [ -z \"\$DOCBUILDER_PREVIEW_STARTED\" ]; then\\n    export DOCBUILDER_PREVIEW_STARTED=1\\n    if command -v docbuilder > /dev/null 2>&1 && [ -d \"/workspaces\" ]; then\\n        # Check if docbuilder is already running\\n        if pgrep -f 'docbuilder preview' > /dev/null 2>&1; then\\n            echo \"DocBuilder preview server is already running\"\\n        else\\n            for ws_dir in /workspaces/*; do\\n                if [ -d \"\$ws_dir\" ]; then\\n                    cd \"\$ws_dir\" || continue\\n                    DOCS_DIR=\"${DOCS_DIR}\"\\n                    [ ! -d \"\$DOCS_DIR\" ] && mkdir -p \"\$DOCS_DIR\"\\n                    CMD=\"docbuilder preview --docs-dir \$DOCS_DIR --port ${PREVIEW_PORT}\"\\n                    [ \"${LIVERELOAD_PORT}\" != \"0\" ] && CMD=\"\$CMD --livereload-port ${LIVERELOAD_PORT}\"\\n                    [ \"${VERBOSE}\" = \"true\" ] && CMD=\"\$CMD --verbose\"\\n                    (export PATH=\$PATH:/usr/local/go/bin && nohup \$CMD > /tmp/docbuilder-preview.log 2>&1 &)\\n                    echo \"DocBuilder preview server started in \$ws_dir. Logs: /tmp/docbuilder-preview.log\"\\n                    break\\n                fi\\n            done\\n        fi\\n    fi\\nfi\\n"
+        
+        # Add to /etc/bash.bashrc for bash users
+        if ! grep -q "DOCBUILDER_PREVIEW_STARTED" /etc/bash.bashrc 2>/dev/null; then
+            echo -e "$bashrc_snippet" | sudo -E tee -a /etc/bash.bashrc > /dev/null
+        fi
+        
+        # Add to fish config for fish shell users
+        local fish_config_dir="/etc/fish/conf.d"
+        if [ -d "$fish_config_dir" ] || command -v fish > /dev/null 2>&1; then
+            sudo -E mkdir -p "$fish_config_dir"
+            sudo -E tee "$fish_config_dir/docbuilder-preview.fish" > /dev/null <<'FISHEOF'
 # Auto-start docbuilder preview
 if not set -q DOCBUILDER_PREVIEW_STARTED
     set -gx DOCBUILDER_PREVIEW_STARTED 1
@@ -510,10 +478,12 @@ if not set -q DOCBUILDER_PREVIEW_STARTED
     end
 end
 FISHEOF
-            fi
-            
-            print_status "Auto-preview configured (shell-based fallback)"
         fi
+        
+        print_status "Auto-preview configured (bash/fish shells)"
+        print_info "Preview starts when you open a terminal in the container"
+        print_info "For other shells, add to your devcontainer.json:"
+        print_info '  "postCreateCommand": "docbuilder preview --docs-dir docs --port ${PREVIEW_PORT} > /tmp/docbuilder-preview.log 2>&1 &"'
     else
         print_info "Auto-preview disabled"
     fi

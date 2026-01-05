@@ -252,23 +252,30 @@ All binaries are installed to `/usr/local/bin`:
 
 ### Auto-Preview Mechanism
 
-When `autoPreview` is enabled, the feature creates a systemd service that starts docbuilder automatically:
+When `autoPreview` is enabled, the feature adds startup scripts to shell configuration files:
 
-**With systemd (recommended):**
-1. A systemd service is created at `/etc/systemd/system/docbuilder-preview.service`
-2. The service is enabled and starts automatically when the container starts
-3. Check service status: `systemctl status docbuilder-preview`
-4. View logs: `journalctl -u docbuilder-preview` or `/tmp/docbuilder-preview.log`
-5. Restart service: `systemctl restart docbuilder-preview`
-
-**Without systemd (fallback):**
 1. Scripts are added to `/etc/bash.bashrc` (bash) and `/etc/fish/conf.d/docbuilder-preview.fish` (fish)
-2. The script runs when the first shell session opens
-3. Only starts once per container (controlled by `DOCBUILDER_PREVIEW_STARTED` environment variable)
+2. The script runs when you open the first terminal in the container
+3. It checks for the workspace directory and starts `docbuilder preview` in the background
+4. Only starts once per container (controlled by `DOCBUILDER_PREVIEW_STARTED` environment variable)
+5. Logs output to `/tmp/docbuilder-preview.log`
 
-**Supported shells for fallback:** bash, fish
+**Supported shells:** bash, fish
 
-**Note:** If using other shells (zsh, etc.) without systemd, you'll need to start docbuilder manually with `docbuilder preview` or add a startup script for your shell.
+**For other shells or more reliable startup**, add a `postCreateCommand` to your `devcontainer.json`:
+
+```json
+{
+    "features": {
+        "ghcr.io/inful/docbuilder-feature/docbuilder:latest": {
+            "autoPreview": false
+        }
+    },
+    "postCreateCommand": "nohup docbuilder preview --docs-dir docs --port 1316 > /tmp/docbuilder-preview.log 2>&1 &"
+}
+```
+
+This approach works with any shell and starts immediately after container creation.
 
 ## Supported Platforms
 
