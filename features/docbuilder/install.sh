@@ -153,6 +153,7 @@ install_go() {
 # Download and install docbuilder
 install_docbuilder() {
     local version="$DOCBUILDER_VERSION"
+    local check_existing=true
     
     # Resolve "latest" to actual version number
     if [ "$version" = "latest" ]; then
@@ -164,10 +165,12 @@ install_docbuilder() {
             return 1
         fi
         print_info "Resolved to version: $version"
+        # When using "latest", always download to ensure we get the newest version
+        check_existing=false
     fi
     
     # Check if docbuilder is already installed with the correct version
-    if command -v docbuilder > /dev/null 2>&1; then
+    if [ "$check_existing" = "true" ] && command -v docbuilder > /dev/null 2>&1; then
         local installed_version=$(docbuilder --version 2>&1 | head -n1 | grep -oP 'v?\K[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
         if [ "$installed_version" = "$version" ]; then
             print_status "docbuilder v${version} is already installed"
