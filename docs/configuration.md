@@ -252,15 +252,23 @@ All binaries are installed to `/usr/local/bin`:
 
 ### Auto-Preview Mechanism
 
-When `autoPreview` is enabled:
-1. A script is added to `/etc/bash.bashrc`
-2. The script runs when the first shell session opens
-3. It checks for the workspace directory
-4. Creates the docs directory if needed
-5. Starts `docbuilder preview` in the background
-6. Logs output to `/tmp/docbuilder-preview.log`
+When `autoPreview` is enabled, the feature creates a systemd service that starts docbuilder automatically:
 
-The preview server only starts once per container (controlled by the `DOCBUILDER_PREVIEW_STARTED` environment variable).
+**With systemd (recommended):**
+1. A systemd service is created at `/etc/systemd/system/docbuilder-preview.service`
+2. The service is enabled and starts automatically when the container starts
+3. Check service status: `systemctl status docbuilder-preview`
+4. View logs: `journalctl -u docbuilder-preview` or `/tmp/docbuilder-preview.log`
+5. Restart service: `systemctl restart docbuilder-preview`
+
+**Without systemd (fallback):**
+1. Scripts are added to `/etc/bash.bashrc` (bash) and `/etc/fish/conf.d/docbuilder-preview.fish` (fish)
+2. The script runs when the first shell session opens
+3. Only starts once per container (controlled by `DOCBUILDER_PREVIEW_STARTED` environment variable)
+
+**Supported shells for fallback:** bash, fish
+
+**Note:** If using other shells (zsh, etc.) without systemd, you'll need to start docbuilder manually with `docbuilder preview` or add a startup script for your shell.
 
 ## Supported Platforms
 
