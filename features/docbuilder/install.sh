@@ -9,13 +9,15 @@ if [ -f "$(dirname "$0")/devcontainer-features.env" ]; then
 fi
 
 # Configuration
-DOCBUILDER_VERSION="${DOCBUILDERVERSION:-${docbuilderVersion:-0.1.46}}"
+DOCBUILDER_VERSION="${DOCBUILDERVERSION:-${docbuilderVersion:-0.5.0}}"
 HUGO_VERSION="${HUGOVERSION:-${hugoVersion:-0.154.1}}"
+GO_VERSION="1.25.5"
 AUTO_PREVIEW="${AUTOPREVIEW:-${autoPreview:-true}}"
 DOCS_DIR="${DOCSDIR:-${docsDir:-docs}}"
 PREVIEW_PORT="${PREVIEWPORT:-${previewPort:-1316}}"
 VERBOSE="${VERBOSE:-${verbose:-false}}"
 INSTALL_DIR="/usr/local/bin"
+CURL_OPTS="-fSsL --connect-timeout 30 --max-time 120 --retry 2"
 
 # Proxy settings - from devcontainer-features.env or environment
 HTTP_PROXY="${HTTPPROXY:-${httpProxy:-${http_proxy:-}}}"
@@ -86,18 +88,16 @@ install_go() {
     fi
     
     local arch=$(detect_architecture)
-    local go_version="1.23.4"
-    local download_url="https://go.dev/dl/go${go_version}.linux-${arch}.tar.gz"
+    local download_url="https://go.dev/dl/go${GO_VERSION}.linux-${arch}.tar.gz"
     local temp_dir=$(mktemp -d)
     trap "rm -rf '$temp_dir'" RETURN
     
-    print_info "Installing Go ${go_version} (${arch})..."
+    print_info "Installing Go ${GO_VERSION} (${arch})..."
     print_info "URL: $download_url"
     
     # Download with retries
     local max_attempts=3
     local attempt=1
-    local curl_opts="-fSsL --connect-timeout 30 --max-time 120 --retry 2"
     
     if [ -n "$HTTP_PROXY" ]; then
         print_info "Using HTTP proxy: $HTTP_PROXY"
@@ -106,7 +106,7 @@ install_go() {
     while [ $attempt -le $max_attempts ]; do
         print_info "Download attempt $attempt of $max_attempts..."
         # shellcheck disable=SC2086
-        if curl $curl_opts "$download_url" -o "$temp_dir/go.tar.gz" 2>"$temp_dir/curl_error.log"; then
+        if curl $CURL_OPTS "$download_url" -o "$temp_dir/go.tar.gz" 2>"$temp_dir/curl_error.log"; then
             if [ -f "$temp_dir/go.tar.gz" ] && [ -s "$temp_dir/go.tar.gz" ]; then
                 print_status "Downloaded Go"
                 break
@@ -173,7 +173,6 @@ install_docbuilder() {
     # Download with retries
     local max_attempts=3
     local attempt=1
-    local curl_opts="-fSsL --connect-timeout 30 --max-time 120 --retry 2"
     
     # Note: Proxy is handled via environment variables (http_proxy, https_proxy, no_proxy)
     # which are exported at the beginning of this script
@@ -184,9 +183,9 @@ install_docbuilder() {
     while [ $attempt -le $max_attempts ]; do
         print_info "Download attempt $attempt of $max_attempts..."
         print_info "Environment: http_proxy='$http_proxy' https_proxy='$https_proxy' no_proxy='$NO_PROXY'"
-        print_info "Curl command: curl $curl_opts \"$download_url\" -o \"$temp_dir/docbuilder.tar.gz\""
+        print_info "Curl command: curl $CURL_OPTS \"$download_url\" -o \"$temp_dir/docbuilder.tar.gz\""
         # shellcheck disable=SC2086
-        if curl $curl_opts -v "$download_url" -o "$temp_dir/docbuilder.tar.gz" 2>"$temp_dir/curl_error.log"; then
+        if curl $CURL_OPTS -v "$download_url" -o "$temp_dir/docbuilder.tar.gz" 2>"$temp_dir/curl_error.log"; then
             if [ -f "$temp_dir/docbuilder.tar.gz" ] && [ -s "$temp_dir/docbuilder.tar.gz" ]; then
                 print_status "Downloaded docbuilder"
                 break
@@ -276,7 +275,6 @@ install_hugo() {
     # Download with retries
     local max_attempts=3
     local attempt=1
-    local curl_opts="-fSsL --connect-timeout 30 --max-time 120 --retry 2"
     
     # Note: Proxy is handled via environment variables (http_proxy, https_proxy, no_proxy)
     # which are exported at the beginning of this script
@@ -287,9 +285,9 @@ install_hugo() {
     while [ $attempt -le $max_attempts ]; do
         print_info "Download attempt $attempt of $max_attempts..."
         print_info "Environment: http_proxy='$http_proxy' https_proxy='$https_proxy' no_proxy='$NO_PROXY'"
-        print_info "Curl command: curl $curl_opts \"$download_url\" -o \"$temp_dir/hugo.tar.gz\""
+        print_info "Curl command: curl $CURL_OPTS \"$download_url\" -o \"$temp_dir/hugo.tar.gz\""
         # shellcheck disable=SC2086
-        if curl $curl_opts -v "$download_url" -o "$temp_dir/hugo.tar.gz" 2>"$temp_dir/curl_error.log"; then
+        if curl $CURL_OPTS -v "$download_url" -o "$temp_dir/hugo.tar.gz" 2>"$temp_dir/curl_error.log"; then
             if [ -f "$temp_dir/hugo.tar.gz" ] && [ -s "$temp_dir/hugo.tar.gz" ]; then
                 print_status "Downloaded hugo"
                 break
