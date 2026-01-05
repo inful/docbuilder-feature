@@ -396,6 +396,7 @@ setup_auto_preview() {
                 -e "s|__PREVIEW_PORT__|${PREVIEW_PORT}|g" \
                 -e "s|__LIVERELOAD_PORT__|${LIVERELOAD_PORT}|g" \
                 -e "s|__VERBOSE__|${VERBOSE}|g" \
+                -e "s|__VSCODE_LINKS__|${VSCODE_LINKS}|g" \
                 "$script_dir/preview-startup.sh" | sudo -E tee "$startup_script" > /dev/null
             sudo -E chmod +x "$startup_script"
         else
