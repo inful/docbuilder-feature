@@ -472,7 +472,7 @@ if not set -q DOCBUILDER_PREVIEW_STARTED
                     test "$LIVERELOAD_PORT" != "0"; and set CMD "\$CMD --livereload-port $LIVERELOAD_PORT"
                     test "$VERBOSE" = "true"; and set CMD "\$CMD --verbose"
                     test "$VSCODE_LINKS" = "true"; and set CMD "\$CMD --vscode"
-                    fish -c "set -x PATH \$PATH /usr/local/go/bin; nohup \$CMD > /tmp/docbuilder-preview.log 2>&1 &"
+                    env PATH=(string join : \$PATH):/usr/local/go/bin nohup \$CMD > /tmp/docbuilder-preview.log 2>&1 &
                     echo "DocBuilder preview server started in \$ws_dir. Logs: /tmp/docbuilder-preview.log"
                     break
                 end
