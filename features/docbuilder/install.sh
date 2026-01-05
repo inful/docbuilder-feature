@@ -9,7 +9,7 @@ if [ -f "$(dirname "$0")/devcontainer-features.env" ]; then
 fi
 
 # Configuration
-DOCBUILDER_VERSION="${DOCBUILDERVERSION:-${docbuilderVersion:-0.5.0}}"
+DOCBUILDER_VERSION="${DOCBUILDERVERSION:-${docbuilderVersion:-latest}}"
 HUGO_VERSION="${HUGOVERSION:-${hugoVersion:-0.154.1}}"
 GO_VERSION="1.25.5"
 AUTO_PREVIEW="${AUTOPREVIEW:-${autoPreview:-true}}"

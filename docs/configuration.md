@@ -7,7 +7,7 @@ Complete reference for all configuration options available in the DocBuilder Dev
 ### `docbuilderVersion`
 
 - **Type:** `string`
-- **Default:** `"0.5.0"`
+- **Default:** `"latest"`
 - **Proposals:** `"0.5.0"`, `"latest"`
 - **Description:** Version of DocBuilder to install
 
@@ -18,7 +18,7 @@ Specify the exact version of DocBuilder to install, or use `"latest"` to always 
 {
     "features": {
         "ghcr.io/inful/docbuilder-feature/docbuilder:latest": {
-            "docbuilderVersion": "0.1.45"
+            "docbuilderVersion": "0.5.0"
         }
     }
 }
@@ -211,7 +211,7 @@ Here's a complete example showing all options:
     "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
     "features": {
         "ghcr.io/inful/docbuilder-feature/docbuilder:latest": {
-            "docbuilderVersion": "0.5.0",
+            "docbuilderVersion": "latest",
             "hugoVersion": "0.154.1",
             "autoPreview": true,
             "docsDir": "docs",

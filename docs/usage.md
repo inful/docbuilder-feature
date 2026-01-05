@@ -18,7 +18,7 @@ Add the feature to your `devcontainer.json`:
 
 This installs:
 - Go v1.25.5
-- DocBuilder v0.5.0 (default)
+- DocBuilder (latest version by default)
 - Hugo Extended v0.154.1 (default)
 - Auto-start preview server on container startup
 
@@ -50,12 +50,14 @@ DocBuilder uses two ports that should be forwarded to access the preview server:
 
 ### Custom Versions
 
+Pin to specific versions:
+
 ```json
 {
     "features": {
         "ghcr.io/inful/docbuilder-feature/docbuilder:latest": {
-            "docbuilderVersion": "0.1.45",
-            "hugoVersion": "0.153.0"
+            "docbuilderVersion": "0.5.0",
+            "hugoVersion": "0.154.1"
         }
     }
 }
