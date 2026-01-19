@@ -179,6 +179,9 @@ install_docbuilder() {
         else
             print_info "docbuilder v${installed_version} is installed, but v${version} is requested. Updating..."
         fi
+    elif [ "$check_existing" = "false" ] && command -v docbuilder > /dev/null 2>&1; then
+        local installed_version=$(docbuilder --version 2>&1 | head -n1 | grep -oP 'v?\K[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
+        print_info "Using 'latest' - will download v${version} (currently have v${installed_version})"
     fi
     
     local arch=$(detect_architecture)
@@ -268,6 +271,7 @@ install_docbuilder() {
 # Download and install hugo (extended)
 install_hugo() {
     local version="$HUGO_VERSION"
+    local check_existing=true
     
     # Resolve "latest" to actual version number
     if [ "$version" = "latest" ]; then
@@ -279,10 +283,12 @@ install_hugo() {
             return 1
         fi
         print_info "Resolved to version: $version"
+        # When using "latest", always download to ensure we get the newest version
+        check_existing=false
     fi
     
     # Check if hugo is already installed with the correct version
-    if command -v hugo > /dev/null 2>&1; then
+    if [ "$check_existing" = "true" ] && command -v hugo > /dev/null 2>&1; then
         local installed_version=$(hugo version 2>&1 | grep -oP 'v?\K[0-9]+\.[0-9]+\.[0-9]+' | head -n1 || echo "unknown")
         if [ "$installed_version" = "$version" ]; then
             # Also check if it's the extended version
@@ -295,6 +301,9 @@ install_hugo() {
         else
             print_info "hugo v${installed_version} is installed, but v${version} is requested. Updating..."
         fi
+    elif [ "$check_existing" = "false" ] && command -v hugo > /dev/null 2>&1; then
+        local installed_version=$(hugo version 2>&1 | grep -oP 'v?\K[0-9]+\.[0-9]+\.[0-9]+' | head -n1 || echo "unknown")
+        print_info "Using 'latest' - will download v${version} (currently have v${installed_version})"
     fi
     
     local arch=$(detect_architecture)
