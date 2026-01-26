@@ -20,6 +20,8 @@ The feature uses a dynamic download approach where binaries are fetched during c
 - Supports proxy configuration for corporate networks
 - Always fetches the exact version requested
 
+Note: When users configure `docbuilderVersion: "latest"` (or `hugoVersion: "latest"`), Docker layer caching may reuse the feature install layer during rebuilds. To keep `latest` current, the feature also performs an attach-time update check.
+
 ## Automated Publishing
 
 The feature is automatically published to `ghcr.io/inful/docbuilder-feature/docbuilder` when:
@@ -75,7 +77,7 @@ Once published, reference the feature in your `devcontainer.json`:
 {
     "features": {
         "ghcr.io/inful/docbuilder-feature/docbuilder:latest": {
-            "docbuilderVersion": "0.1.46",
+            "docbuilderVersion": "latest",
             "hugoVersion": "0.154.1",
             "autoPreview": true,
             "docsDir": "docs",
@@ -97,7 +99,7 @@ Or with a specific version tag:
 ```
 
 Available options:
-- `docbuilderVersion`: Version to install (default: "0.1.46")
+- `docbuilderVersion`: Version to install (default: "latest")
 - `hugoVersion`: Hugo version (default: "0.154.1")
 - `autoPreview`: Auto-start preview server (default: true)
 - `docsDir`: Documentation directory (default: "docs")

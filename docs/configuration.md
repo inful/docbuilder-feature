@@ -13,6 +13,8 @@ Complete reference for all configuration options available in the DocBuilder Dev
 
 Specify the exact version of DocBuilder to install, or use `"latest"` to always get the newest release. When using `"latest"`, the feature queries the GitHub API to resolve the latest version number.
 
+Note: Docker layer caching may skip re-running the feature install step during a rebuild. When `docbuilderVersion` is `"latest"`, the feature also performs an attach-time update check to keep the installed binary current.
+
 **Example:**
 ```json
 {
@@ -32,6 +34,8 @@ Specify the exact version of DocBuilder to install, or use `"latest"` to always 
 - **Description:** Version of Hugo Extended to install
 
 The feature installs the extended edition of Hugo, which includes additional features like SCSS processing. When using `"latest"`, the feature queries the GitHub API to resolve the latest version number.
+
+Note: When `hugoVersion` is `"latest"`, the feature also performs an attach-time update check to keep the installed binary current.
 
 **Example:**
 ```json
@@ -252,12 +256,11 @@ All binaries are installed to `/usr/local/bin`:
 
 ### Auto-Preview Mechanism
 
-When `autoPreview` is enabled, the feature adds startup scripts to shell configuration files:
+When `autoPreview` is enabled, the feature uses the Dev Containers lifecycle hook `postAttachCommand` to start the preview server.
 
-1. Scripts are added to `/etc/bash.bashrc` (bash) and `/etc/fish/conf.d/docbuilder-preview.fish` (fish)
-2. The script runs when you open the first terminal in the container
-3. It checks for the workspace directory and starts `docbuilder preview` in the background
-4. Only starts once per container (controlled by `DOCBUILDER_PREVIEW_STARTED` environment variable)
+1. During build, a startup script is installed to `/usr/local/share/docbuilder-preview.sh`
+2. On attach, `postAttachCommand` runs the script to start `docbuilder preview` in the background
+3. The script checks whether a `docbuilder preview` process is already running to avoid duplicates
 5. Logs output to `/tmp/docbuilder-preview.log`
 
 **Supported shells:** bash, fish

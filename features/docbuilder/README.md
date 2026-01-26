@@ -11,7 +11,7 @@ This is a DevContainer feature that installs [docbuilder](https://github.com/inf
 
 ## Options
 
-### `docbuilderVersion` (default: `0.1.46`)
+### `docbuilderVersion` (default: `latest`)
 
 The version of docbuilder to install. Can be set to any released version or `latest`.
 
@@ -56,8 +56,8 @@ Add this feature to your `devcontainer.json`:
 
 This will install:
 
-- Go 1.23.4
-- docbuilder v0.1.46
+- Go (see `install.sh` for the pinned version)
+- docbuilder (latest)
 - Hugo Extended v0.154.1
 - Auto-start preview server on container startup
 
@@ -151,6 +151,8 @@ To always use the latest available versions:
     }
 }
 ```
+
+Note: Docker may reuse cached image layers during a rebuild, which can skip re-running the feature install step. When `docbuilderVersion` (or `hugoVersion`) is set to `latest`, this feature installs a small attach-time updater that checks GitHub Releases and updates the binaries if a newer version is available.
 
 ### Using with a Proxy
 

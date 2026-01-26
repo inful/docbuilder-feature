@@ -22,6 +22,8 @@ This installs:
 - Hugo Extended v0.154.1 (default)
 - Auto-start preview server on container startup
 
+Note: If you set `docbuilderVersion` (or `hugoVersion`) to `"latest"`, Docker layer caching may skip re-running the feature install step during a rebuild. To keep `latest` fresh, the feature also runs a small attach-time updater when you attach to the container.
+
 ## Port Forwarding
 
 DocBuilder uses two ports that should be forwarded to access the preview server:
@@ -239,6 +241,14 @@ If binaries fail to download during container build:
 - Check network connectivity
 - Configure proxy settings if behind a firewall
 - Check the devcontainer build logs for detailed errors
+
+### "Latest" Not Updating
+
+If you are using `docbuilderVersion: "latest"` (or `hugoVersion: "latest"`) but still see an older version:
+
+- Re-open the container (detach/attach) so `postAttachCommand` runs again
+- Run the updater manually: `sudo /usr/local/share/docbuilder-update.sh`
+- If needed, rebuild without cache (Dev Containers: **Rebuild Container Without Cache**)
 
 ### Port Already in Use
 

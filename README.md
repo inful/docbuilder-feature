@@ -25,6 +25,8 @@ A [DevContainer feature](https://containers.dev/implementors/features/) that ins
 
 Rebuild your container and open `http://localhost:1316` to see your documentation.
 
+If you configure `docbuilderVersion: "latest"`, the feature also performs an attach-time update check to keep the installed binary current even when Docker build cache is reused.
+
 ## Documentation
 
 - **[Usage Guide](docs/usage.md)** - Examples and common workflows

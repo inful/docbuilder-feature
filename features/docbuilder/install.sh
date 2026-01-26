@@ -419,6 +419,25 @@ setup_auto_preview() {
     fi
 }
 
+# Setup update-on-attach script (works around Docker layer caching)
+setup_update_on_attach() {
+    print_info "Installing update-on-attach script..."
+
+    local script_dir="$(cd "$(dirname "$0")" && pwd)"
+    local update_script="/usr/local/share/docbuilder-update.sh"
+
+    if [ -f "$script_dir/update-on-attach.sh" ]; then
+        sed -e "s|__DOCBUILDER_VERSION_REQUESTED__|${DOCBUILDER_VERSION}|g" \
+            -e "s|__HUGO_VERSION_REQUESTED__|${HUGO_VERSION}|g" \
+            "$script_dir/update-on-attach.sh" | sudo -E tee "$update_script" > /dev/null
+        sudo -E chmod +x "$update_script"
+        print_status "Update-on-attach script installed"
+    else
+        print_error "update-on-attach.sh not found in $script_dir"
+        return 1
+    fi
+}
+
 # Main installation process
 main() {
     echo "=========================================="
@@ -436,6 +455,9 @@ main() {
     echo ""
     
     install_hugo
+    echo ""
+
+    setup_update_on_attach
     echo ""
     
     setup_auto_preview
