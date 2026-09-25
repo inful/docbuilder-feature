@@ -205,6 +205,25 @@ Specifies hosts that should bypass the proxy. Common values include localhost, i
 }
 ```
 
+### `installMcp`
+
+- **Type:** `boolean`
+- **Default:** `false`
+- **Description:** Install the `docbuilder-mcp` Model Context Protocol server binary alongside the CLI
+
+When enabled, the feature installs `docbuilder-mcp` to `/usr/local/bin/docbuilder-mcp` from the same release tarball as the CLI — no extra downloads are required. The binary is what MCP clients (Claude Code, Cursor, etc.) point at to expose docbuilder operations over MCP. This option is off by default because most users do not consume the MCP server.
+
+**Example:**
+```json
+{
+    "features": {
+        "ghcr.io/inful/docbuilder-feature/docbuilder:latest": {
+            "installMcp": true
+        }
+    }
+}
+```
+
 ## Complete Configuration Example
 
 Here's a complete example showing all options:
@@ -224,7 +243,8 @@ Here's a complete example showing all options:
             "verbose": false,
             "httpProxy": "${localEnv:HTTP_PROXY}",
             "httpsProxy": "${localEnv:HTTPS_PROXY}",
-            "noProxy": "${localEnv:NO_PROXY}"
+            "noProxy": "${localEnv:NO_PROXY}",
+            "installMcp": false
         }
     },
     "forwardPorts": [1316, 1319],
@@ -253,6 +273,7 @@ All binaries are installed to `/usr/local/bin`:
 - `/usr/local/bin/docbuilder`
 - `/usr/local/bin/hugo`
 - `/usr/local/bin/go` (in `/usr/local/go/bin`, added to PATH)
+- `/usr/local/bin/docbuilder-mcp` (only when `installMcp: true`)
 
 ### Auto-Preview Mechanism
 

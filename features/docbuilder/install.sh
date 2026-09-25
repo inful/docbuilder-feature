@@ -18,6 +18,7 @@ PREVIEW_PORT="${PREVIEWPORT:-${previewPort:-1316}}"
 LIVERELOAD_PORT="${LIVERELOADPORT:-${livereloadPort:-0}}"
 VERBOSE="${VERBOSE:-${verbose:-false}}"
 VSCODE_LINKS="${VSCODELINKS:-${vscodeLinks:-true}}"
+INSTALL_MCP="${INSTALLMCP:-${installMcp:-false}}"
 INSTALL_DIR="/usr/local/bin"
 CURL_OPTS="-fSsL --connect-timeout 30 --max-time 120 --retry 2"
 
@@ -266,6 +267,32 @@ install_docbuilder() {
         return 1
     fi
     print_status "docbuilder installed successfully"
+    
+    # Optionally install docbuilder-mcp from the same archive
+    if [ "$INSTALL_MCP" = "true" ]; then
+        local mcp_binary=$(find "$temp_dir" -maxdepth 1 -type f -name "docbuilder-mcp")
+        if [ -z "$mcp_binary" ]; then
+            print_error "docbuilder-mcp binary not found in archive (requested via installMcp=true)"
+            return 1
+        fi
+
+        if ! sudo -E mv "$mcp_binary" "$INSTALL_DIR/docbuilder-mcp"; then
+            print_error "Failed to install docbuilder-mcp to $INSTALL_DIR"
+            return 1
+        fi
+
+        if ! sudo -E chmod +x "$INSTALL_DIR/docbuilder-mcp"; then
+            print_error "Failed to make docbuilder-mcp executable"
+            return 1
+        fi
+
+        # Verify installation
+        if ! "$INSTALL_DIR/docbuilder-mcp" --version > /dev/null 2>&1; then
+            print_error "Failed to verify docbuilder-mcp installation"
+            return 1
+        fi
+        print_status "docbuilder-mcp installed successfully"
+    fi
 }
 
 # Download and install hugo (extended)
@@ -472,6 +499,9 @@ main() {
     echo "Installed versions:"
     "$INSTALL_DIR/docbuilder" --version
     "$INSTALL_DIR/hugo" version
+    if [ "$INSTALL_MCP" = "true" ] && [ -x "$INSTALL_DIR/docbuilder-mcp" ]; then
+        "$INSTALL_DIR/docbuilder-mcp" --version
+    fi
 }
 
 main "$@"

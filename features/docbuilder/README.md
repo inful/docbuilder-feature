@@ -7,6 +7,7 @@ This is a DevContainer feature that installs [docbuilder](https://github.com/inf
 - Installs `docbuilder` binary
 - Installs `hugo` (extended edition) binary
 - Installs `go` binary (required by Hugo for module management)
+- Optionally installs `docbuilder-mcp` Model Context Protocol server binary (off by default)
 - Configures automatic preview server startup (optional)
 
 ## Options
@@ -34,6 +35,10 @@ Port for the docbuilder preview server.
 ### `verbose` (default: `false`)
 
 Enable verbose output for docbuilder preview.
+
+### `installMcp` (default: `false`)
+
+Also install the `docbuilder-mcp` Model Context Protocol server binary. The MCP server is bundled in the same release tarball as `docbuilder`, so enabling this option adds no extra downloads — it just installs the binary to `/usr/local/bin/docbuilder-mcp`. The MCP server is typically referenced from your MCP client config (e.g. Claude Code, Cursor) — see the [docbuilder MCP docs](https://github.com/inful/docbuilder) for client wiring.
 
 ## Supported Architectures
 
@@ -172,6 +177,22 @@ If you're behind a corporate proxy, you can configure proxy settings:
 
 The feature will use these proxy settings when downloading the binaries from GitHub.
 
+### Install the MCP Server
+
+To also install the `docbuilder-mcp` Model Context Protocol server binary:
+
+```json
+{
+    "features": {
+        "ghcr.io/inful/docbuilder-feature/docbuilder:latest": {
+            "installMcp": true
+        }
+    }
+}
+```
+
+This installs `/usr/local/bin/docbuilder-mcp` from the same release tarball as the CLI. Wire it up in your MCP client configuration as needed.
+
 ## Installation Details
 
 The feature installation script:
@@ -207,6 +228,8 @@ After installation, you can verify the tools are available:
 docbuilder --version
 hugo version
 go version
+# If you enabled installMcp:
+docbuilder-mcp --version
 ```
 
 Check if the preview server is running:

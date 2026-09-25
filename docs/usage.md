@@ -171,6 +171,22 @@ Configure proxy settings for downloading binaries:
 }
 ```
 
+### Install the MCP Server
+
+The `docbuilder-mcp` Model Context Protocol server is bundled in the same release tarball as the CLI. Enable it with `installMcp: true` to drop the binary at `/usr/local/bin/docbuilder-mcp`:
+
+```json
+{
+    "features": {
+        "ghcr.io/inful/docbuilder-feature/docbuilder:latest": {
+            "installMcp": true
+        }
+    }
+}
+```
+
+Wire it up in your MCP client configuration (e.g. point Claude Code or Cursor at `/usr/local/bin/docbuilder-mcp`) to expose docbuilder operations over MCP.
+
 ## Verification
 
 After the container is created, verify the tools are installed:
@@ -179,6 +195,8 @@ After the container is created, verify the tools are installed:
 docbuilder --version
 hugo version
 go version
+# If you enabled installMcp:
+docbuilder-mcp --version
 ```
 
 Check if the preview server is running:

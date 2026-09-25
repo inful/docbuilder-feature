@@ -1,6 +1,6 @@
 {
     "id": "docbuilder",
-    "version": "0.4.4",
+    "version": "0.5.0",
     "name": "DocBuilder and Hugo Extended",
     "documentationURL": "https://github.com/inful/docbuilder-feature",
     "description": "Installs docbuilder and hugo extended binaries.",
@@ -9,7 +9,8 @@
         "docbuilder",
         "hugo",
         "documentation",
-        "static-site-generator"
+        "static-site-generator",
+        "mcp"
     ],
     "installsAfter": [
         "ghcr.io/devcontainers/features/common-utils"
@@ -62,6 +63,11 @@
             "type": "boolean",
             "default": true,
             "description": "Enable VS Code edit links in preview (opens files in editor via /_edit/ handler)."
+        },
+        "installMcp": {
+            "type": "boolean",
+            "default": false,
+            "description": "Install the docbuilder-mcp Model Context Protocol server binary alongside the CLI (from the same release tarball)."
         },
         "httpProxy": {
             "type": "string",

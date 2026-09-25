@@ -105,6 +105,7 @@ Available options:
 - `docsDir`: Documentation directory (default: "docs")
 - `previewPort`: Preview server port (default: "1316")
 - `verbose`: Verbose output (default: false)
+- `installMcp`: Also install the `docbuilder-mcp` Model Context Protocol server binary (default: false)
 - `httpProxy`, `httpsProxy`, `noProxy`: Proxy configuration
 
 ## Release Process
