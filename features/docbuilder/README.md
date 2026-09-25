@@ -61,7 +61,7 @@ Add this feature to your `devcontainer.json`:
 
 This will install:
 
-- Go (see `install.sh` for the pinned version)
+- Go v1.25.5
 - docbuilder (latest)
 - Hugo Extended v0.154.1
 - Auto-start preview server on container startup
@@ -75,19 +75,11 @@ To access the docbuilder preview server, add port forwarding to your `devcontain
     "features": {
         "ghcr.io/inful/docbuilder-feature/docbuilder:latest": {}
     },
-    "forwardPorts": [1316, 1317, 1318, 1319],
+    "forwardPorts": [1316, 1319],
     "portsAttributes": {
         "1316": {
             "label": "DocBuilder Preview",
             "onAutoForward": "notify"
-        },
-        "1317": {
-            "label": "DocBuilder Webhooks",
-            "onAutoForward": "silent"
-        },
-        "1318": {
-            "label": "DocBuilder Admin",
-            "onAutoForward": "silent"
         },
         "1319": {
             "label": "DocBuilder LiveReload",
@@ -97,11 +89,12 @@ To access the docbuilder preview server, add port forwarding to your `devcontain
 }
 ```
 
-The ports used by docbuilder:
+The ports used by `docbuilder preview` (which is what this feature starts):
+
 - **1316**: Preview server (main web interface)
-- **1317**: Webhook server
-- **1318**: Admin interface
-- **1319**: LiveReload server
+- **1319**: LiveReload server (only if `livereloadPort` is not `0`; defaults to `previewPort + 3`)
+
+Note: docbuilder's full daemon mode also exposes webhook and admin HTTP servers, but those are started by the standalone `docbuilder` daemon, not by `docbuilder preview`, and are therefore not bound inside this dev container.
 
 ### Custom Versions and Options
 
@@ -111,8 +104,8 @@ To use specific versions and configure preview options:
 {
     "features": {
         "ghcr.io/inful/docbuilder-feature/docbuilder:latest": {
-            "docbuilderVersion": "0.1.45",
-            "hugoVersion": "0.153.0",
+            "docbuilderVersion": "0.14.3",
+            "hugoVersion": "0.154.1",
             "autoPreview": true,
             "docsDir": "documentation",
             "previewPort": "8080",
@@ -201,10 +194,11 @@ The feature installation script:
 2. Installs Go (if not already present)
 3. Downloads docbuilder binary from [inful/docbuilder releases](https://github.com/inful/docbuilder/releases)
 4. Downloads Hugo Extended binary from [gohugoio/hugo releases](https://github.com/gohugoio/hugo/releases)
-5. Extracts binaries and places them in `/usr/local/bin`
-6. Configures automatic preview server startup (if enabled)
-7. Verifies that all binaries are executable and functional
-8. Displays installed versions
+5. Extracts binaries and places them in `/usr/local/bin` (optionally `docbuilder-mcp` if `installMcp: true`)
+6. Installs an attach-time update helper to `/usr/local/share/docbuilder-update.sh` (keeps `latest` current despite Docker layer caching)
+7. Configures automatic preview server startup (if enabled) by installing `/usr/local/share/docbuilder-preview.sh`
+8. Verifies that all binaries are executable and functional
+9. Displays installed versions
 
 The installation script includes version checking to skip downloads if the correct versions are already installed, improving rebuild performance.
 

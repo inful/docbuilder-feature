@@ -26,11 +26,15 @@ When making any changes to the devcontainer feature, follow this checklist:
 
 - [ ] Update version in `features/docbuilder/devcontainer-feature.json`
 - [ ] Test changes locally if possible
-- [ ] Update README.md if changing behavior or options
-- [ ] Commit with descriptive message
+- [ ] Update docs to match any behavior or option changes:
+  - `features/docbuilder/README.md` — feature-level docs (options, usage, install steps)
+  - `docs/configuration.md` — option reference (defaults, types, descriptions)
+  - `docs/usage.md` — user-facing workflow examples
+  - `docs/publishing.md` — option list and release/version-bump notes (if a new option is added or default changes)
+- [ ] Commit with a descriptive conventional-commit message (see `.github/copilot-instructions.md` for the format)
 - [ ] Push to trigger CI/CD
 - [ ] Wait for GitHub Actions to complete
-- [ ] Verify publish succeeded (check for version number, not just "skipping")
+- [ ] Verify publish succeeded (check for the new version number, not just "skipping")
 
 ## Testing Changes
 

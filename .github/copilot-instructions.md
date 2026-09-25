@@ -25,7 +25,14 @@ Testing changes requires:
 
 - **Install method**: Downloads binaries during container build (binaries are too large to bundle in OCI image)
 - **Proxy support**: Feature accepts `httpProxy`, `httpsProxy`, and `noProxy` options
-- **Binaries installed**: `docbuilder` and `hugo` (extended version)
+- **Binaries installed** (to `/usr/local/bin`):
+  - `docbuilder` (CLI) — always
+  - `hugo` (extended edition) — always
+  - `go` — always (required by Hugo for module management; pinned to `1.25.5` in `install.sh`)
+  - `docbuilder-mcp` (Model Context Protocol server) — only when `installMcp: true`
+- **Helper scripts** (to `/usr/local/share/`, run via the `postAttachCommand` lifecycle hook):
+  - `docbuilder-update.sh` — always installed; checks GitHub Releases for newer `latest` and updates if found
+  - `docbuilder-preview.sh` — only when `autoPreview: true`; starts `docbuilder preview` in the background
 
 ## Publishing
 

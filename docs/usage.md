@@ -98,7 +98,7 @@ Pin to specific versions:
 {
     "features": {
         "ghcr.io/inful/docbuilder-feature/docbuilder:latest": {
-            "docbuilderVersion": "0.5.0",
+            "docbuilderVersion": "0.14.3",
             "hugoVersion": "0.154.1"
         }
     }

@@ -8,19 +8,19 @@ Complete reference for all configuration options available in the DocBuilder Dev
 
 - **Type:** `string`
 - **Default:** `"latest"`
-- **Proposals:** `"0.5.0"`, `"latest"`
+- **Proposals:** `"0.14.3"`, `"latest"`
 - **Description:** Version of DocBuilder to install
 
 Specify the exact version of DocBuilder to install, or use `"latest"` to always get the newest release. When using `"latest"`, the feature queries the GitHub API to resolve the latest version number.
 
-Note: Docker layer caching may skip re-running the feature install step during a rebuild. When `docbuilderVersion` is `"latest"`, the feature also performs an attach-time update check to keep the installed binary current.
+Note: Docker layer caching may skip re-running the feature install step during a rebuild. When `docbuilderVersion` is `"latest"`, the feature also performs an attach-time update check (via the `update-on-attach.sh` helper installed to `/usr/local/share/`) to keep the installed binary current.
 
 **Example:**
 ```json
 {
     "features": {
         "ghcr.io/inful/docbuilder-feature/docbuilder:latest": {
-            "docbuilderVersion": "0.5.0"
+            "docbuilderVersion": "0.14.3"
         }
     }
 }
@@ -35,7 +35,7 @@ Note: Docker layer caching may skip re-running the feature install step during a
 
 The feature installs the extended edition of Hugo, which includes additional features like SCSS processing. When using `"latest"`, the feature queries the GitHub API to resolve the latest version number.
 
-Note: When `hugoVersion` is `"latest"`, the feature also performs an attach-time update check to keep the installed binary current.
+Note: When `hugoVersion` is `"latest"`, the feature also performs an attach-time update check to keep the installed binary current (via the `update-on-attach.sh` helper installed to `/usr/local/share/`).
 
 **Example:**
 ```json
@@ -282,9 +282,18 @@ When `autoPreview` is enabled, the feature uses the Dev Containers lifecycle hoo
 1. During build, a startup script is installed to `/usr/local/share/docbuilder-preview.sh`
 2. On attach, `postAttachCommand` runs the script to start `docbuilder preview` in the background
 3. The script checks whether a `docbuilder preview` process is already running to avoid duplicates
-5. Logs output to `/tmp/docbuilder-preview.log`
+4. Logs output to `/tmp/docbuilder-preview.log`
 
 **Supported shells:** bash, fish
+
+### Latest-Version Refresh on Attach
+
+Regardless of `autoPreview`, the feature installs an update helper at `/usr/local/share/docbuilder-update.sh` that `postAttachCommand` runs on every attach. The helper checks GitHub Releases for the latest `docbuilder` and `hugo` versions, but only triggers a download+install when:
+
+- The corresponding `*Version` option is set to `"latest"`, AND
+- The installed binary's version does not match the latest release.
+
+This works around Docker layer caching, which would otherwise prevent a rebuild from picking up a new "latest" version. To force an immediate update without re-attaching, run `sudo /usr/local/share/docbuilder-update.sh` inside the container.
 
 **For other shells or more reliable startup**, add a `postCreateCommand` to your `devcontainer.json`:
 

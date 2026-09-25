@@ -6,13 +6,14 @@ This guide explains how the DocBuilder feature is published to the GitHub Contai
 
 The feature uses a dynamic download approach where binaries are fetched during container build:
 
-1. The feature code (install.sh, devcontainer-feature.json, etc.) is published to the OCI registry
-2. When a devcontainer is built, the install.sh script runs and:
-   - Downloads Go from official Go distribution
-   - Downloads docbuilder from GitHub releases
+1. The feature code (`install.sh`, `devcontainer-feature.json`, `preview-startup.sh`, `update-on-attach.sh`) is published to the OCI registry
+2. When a devcontainer is built, `install.sh` runs and:
+   - Downloads Go from the official Go distribution
+   - Downloads docbuilder from GitHub releases (optionally also extracts `docbuilder-mcp` from the same tarball when `installMcp: true`)
    - Downloads Hugo Extended from GitHub releases
    - Installs binaries to `/usr/local/bin`
-   - Configures auto-preview if enabled
+   - Installs `/usr/local/share/docbuilder-update.sh` (attach-time latest-version refresh)
+   - Installs `/usr/local/share/docbuilder-preview.sh` if auto-preview is enabled
 
 **Benefits:**
 - No large binaries stored in git or OCI registry
@@ -93,7 +94,7 @@ Or with a specific version tag:
 ```json
 {
     "features": {
-        "ghcr.io/inful/docbuilder-feature/docbuilder:0.3.6": {}
+        "ghcr.io/inful/docbuilder-feature/docbuilder:0.5.0": {}
     }
 }
 ```
@@ -104,6 +105,8 @@ Available options:
 - `autoPreview`: Auto-start preview server (default: true)
 - `docsDir`: Documentation directory (default: "docs")
 - `previewPort`: Preview server port (default: "1316")
+- `livereloadPort`: LiveReload port (default: "0" = `previewPort + 3`)
+- `vscodeLinks`: VS Code edit-link handler (`/_edit/`) (default: true)
 - `verbose`: Verbose output (default: false)
 - `installMcp`: Also install the `docbuilder-mcp` Model Context Protocol server binary (default: false)
 - `httpProxy`, `httpsProxy`, `noProxy`: Proxy configuration
