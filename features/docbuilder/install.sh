@@ -267,32 +267,87 @@ install_docbuilder() {
         return 1
     fi
     print_status "docbuilder installed successfully"
-    
-    # Optionally install docbuilder-mcp from the same archive
-    if [ "$INSTALL_MCP" = "true" ]; then
-        local mcp_binary=$(find "$temp_dir" -maxdepth 1 -type f -name "docbuilder-mcp")
-        if [ -z "$mcp_binary" ]; then
-            print_error "docbuilder-mcp binary not found in archive (requested via installMcp=true)"
-            return 1
-        fi
+}
 
-        if ! sudo -E mv "$mcp_binary" "$INSTALL_DIR/docbuilder-mcp"; then
-            print_error "Failed to install docbuilder-mcp to $INSTALL_DIR"
-            return 1
-        fi
-
-        if ! sudo -E chmod +x "$INSTALL_DIR/docbuilder-mcp"; then
-            print_error "Failed to make docbuilder-mcp executable"
-            return 1
-        fi
-
-        # Verify installation
-        if ! "$INSTALL_DIR/docbuilder-mcp" --version > /dev/null 2>&1; then
-            print_error "Failed to verify docbuilder-mcp installation"
-            return 1
-        fi
-        print_status "docbuilder-mcp installed successfully"
+# Download and install docbuilder-mcp from the release tarball.
+#
+# This is a separate function (rather than a tail block of install_docbuilder)
+# so it runs regardless of the docbuilder early-return optimization. The
+# dev-container layer cache commonly reuses the docbuilder install across
+# rebuilds, and the early-return in install_docbuilder would otherwise skip
+# this step whenever docbuilder is already at the right version.
+install_docbuilder_mcp() {
+    if [ "$INSTALL_MCP" != "true" ]; then
+        return 0
     fi
+
+    if [ -x "$INSTALL_DIR/docbuilder-mcp" ]; then
+        print_status "docbuilder-mcp is already installed"
+        return 0
+    fi
+
+    local version="$DOCBUILDER_VERSION"
+
+    # Resolve "latest" to actual version number
+    if [ "$version" = "latest" ]; then
+        print_info "Resolving 'latest' version for docbuilder-mcp..."
+        # shellcheck disable=SC2086
+        version=$(curl $CURL_OPTS "https://api.github.com/repos/inful/docbuilder/releases/latest" | grep -oP '"tag_name":\s*"v?\K[0-9.]+' || echo "")
+        if [ -z "$version" ]; then
+            print_error "Failed to resolve 'latest' version for docbuilder-mcp"
+            return 1
+        fi
+        print_info "Resolved to version: $version"
+    fi
+
+    local arch=$(detect_architecture)
+    local download_url="https://github.com/inful/docbuilder/releases/download/v${version}/docbuilder_linux_${arch}.tar.gz"
+    local temp_dir=$(mktemp -d)
+    trap "rm -rf '$temp_dir'" RETURN
+
+    print_info "Installing docbuilder-mcp v${version} (${arch})..."
+
+    if [ -n "$HTTP_PROXY" ]; then
+        print_info "Using HTTP proxy: $HTTP_PROXY"
+    fi
+
+    # shellcheck disable=SC2086
+    if ! curl $CURL_OPTS "$download_url" -o "$temp_dir/docbuilder.tar.gz"; then
+        print_error "Failed to download docbuilder release tarball for MCP install"
+        return 1
+    fi
+
+    if [ ! -f "$temp_dir/docbuilder.tar.gz" ] || [ ! -s "$temp_dir/docbuilder.tar.gz" ]; then
+        print_error "Downloaded tarball is missing or empty: $download_url"
+        return 1
+    fi
+
+    if ! tar -xzf "$temp_dir/docbuilder.tar.gz" -C "$temp_dir"; then
+        print_error "Failed to extract docbuilder tarball for MCP install"
+        return 1
+    fi
+
+    local mcp_binary=$(find "$temp_dir" -maxdepth 1 -type f -name "docbuilder-mcp")
+    if [ -z "$mcp_binary" ]; then
+        print_error "docbuilder-mcp binary not found in archive (requested via installMcp=true). The binary was added in docbuilder v0.14.1; upgrade docbuilderVersion or disable installMcp."
+        return 1
+    fi
+
+    if ! sudo -E mv "$mcp_binary" "$INSTALL_DIR/docbuilder-mcp"; then
+        print_error "Failed to install docbuilder-mcp to $INSTALL_DIR"
+        return 1
+    fi
+
+    if ! sudo -E chmod +x "$INSTALL_DIR/docbuilder-mcp"; then
+        print_error "Failed to make docbuilder-mcp executable"
+        return 1
+    fi
+
+    if ! "$INSTALL_DIR/docbuilder-mcp" --version > /dev/null 2>&1; then
+        print_error "Failed to verify docbuilder-mcp installation"
+        return 1
+    fi
+    print_status "docbuilder-mcp installed successfully"
 }
 
 # Download and install hugo (extended)
@@ -480,7 +535,10 @@ main() {
     
     install_docbuilder
     echo ""
-    
+
+    install_docbuilder_mcp
+    echo ""
+
     install_hugo
     echo ""
 
