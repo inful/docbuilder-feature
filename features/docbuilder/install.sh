@@ -530,6 +530,7 @@ setup_update_on_attach() {
     if [ -f "$script_dir/update-on-attach.sh" ]; then
         sed -e "s|__DOCBUILDER_VERSION_REQUESTED__|${DOCBUILDER_VERSION}|g" \
             -e "s|__HUGO_VERSION_REQUESTED__|${HUGO_VERSION}|g" \
+            -e "s|__INSTALL_MCP_REQUESTED__|${INSTALL_MCP}|g" \
             "$script_dir/update-on-attach.sh" | sudo -E tee "$update_script" > /dev/null
         sudo -E chmod +x "$update_script"
         print_status "Update-on-attach script installed"

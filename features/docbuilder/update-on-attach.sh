@@ -3,6 +3,7 @@ set -e
 
 DOCBUILDER_VERSION_REQUESTED="__DOCBUILDER_VERSION_REQUESTED__"
 HUGO_VERSION_REQUESTED="__HUGO_VERSION_REQUESTED__"
+INSTALL_MCP_REQUESTED="__INSTALL_MCP_REQUESTED__"
 INSTALL_DIR="/usr/local/bin"
 CURL_OPTS="-fSsL --connect-timeout 30 --max-time 120 --retry 2"
 
@@ -56,6 +57,14 @@ installed_hugo_version() {
         return 0
     fi
     hugo version 2>&1 | grep -oP 'v?\K[0-9]+\.[0-9]+\.[0-9]+' | head -n1 || true
+}
+
+installed_docbuilder_mcp_version() {
+    if ! command -v docbuilder-mcp >/dev/null 2>&1; then
+        echo ""
+        return 0
+    fi
+    docbuilder-mcp --version 2>&1 | head -n1 | grep -oP 'v?\K[0-9]+\.[0-9]+\.[0-9]+' || true
 }
 
 update_docbuilder_if_needed() {
@@ -152,8 +161,85 @@ update_hugo_if_needed() {
     print_info "hugo updated to: $($INSTALL_DIR/hugo version 2>/dev/null | head -n1 || echo "unknown")"
 }
 
+# Install/refresh docbuilder-mcp at attach time. Runs whenever
+# installMcp=true was set at build time, regardless of whether install.sh
+# successfully placed the binary — so it self-heals when the build-time
+# install was silently skipped (e.g. due to an unrelated env-var issue
+# or an OCI layer cache hit on an older feature version).
+#
+# Mirrors the docbuilder/hugo refresh logic above: resolve the target
+# version (from "latest" or a pinned value), compare with what's
+# installed, and (re-)download the matching tarball if needed.
+#
+# Archive layout (upstream inful/docbuilder):
+#   v0.14.1 - v0.15.1 : bundled inside the main docbuilder tarball
+#   v0.15.2+          : its own docbuilder-mcp_linux_<arch>.tar.gz
+update_docbuilder_mcp_if_needed() {
+    if [ "$INSTALL_MCP_REQUESTED" != "true" ]; then
+        return 0
+    fi
+
+    local target_version
+    if [ "$DOCBUILDER_VERSION_REQUESTED" = "latest" ]; then
+        target_version=$(resolve_latest_docbuilder || true)
+        if [ -z "$target_version" ]; then
+            print_info "Could not resolve latest docbuilder version; skipping docbuilder-mcp update."
+            return 0
+        fi
+    else
+        target_version="$DOCBUILDER_VERSION_REQUESTED"
+    fi
+
+    local current
+    current=$(installed_docbuilder_mcp_version)
+    if [ -n "$current" ] && [ "$current" = "$target_version" ]; then
+        print_info "docbuilder-mcp is up-to-date (v$target_version)."
+        return 0
+    fi
+
+    local arch
+    arch=$(detect_architecture) || return 0
+
+    print_info "Installing docbuilder-mcp: ${current:-not installed} -> v$target_version (${arch})"
+
+    local temp_dir
+    temp_dir=$(mktemp -d)
+    trap "rm -rf '$temp_dir'" RETURN
+
+    local mcp_url="https://github.com/inful/docbuilder/releases/download/v${target_version}/docbuilder-mcp_linux_${arch}.tar.gz"
+    local main_url="https://github.com/inful/docbuilder/releases/download/v${target_version}/docbuilder_linux_${arch}.tar.gz"
+    local mcp_binary=""
+
+    # Primary path: dedicated MCP tarball (v0.15.2+).
+    if curl $CURL_OPTS "$mcp_url" -o "$temp_dir/mcp.tar.gz" 2>/dev/null \
+        && [ -s "$temp_dir/mcp.tar.gz" ] \
+        && tar -xzf "$temp_dir/mcp.tar.gz" -C "$temp_dir" 2>/dev/null; then
+        mcp_binary=$(find "$temp_dir" -maxdepth 1 -type f -name "docbuilder-mcp" || true)
+    fi
+
+    # Fallback: extract from the main tarball (v0.14.1 - v0.15.1).
+    if [ -z "$mcp_binary" ]; then
+        if curl $CURL_OPTS "$main_url" -o "$temp_dir/docbuilder.tar.gz" 2>/dev/null \
+            && [ -s "$temp_dir/docbuilder.tar.gz" ] \
+            && tar -xzf "$temp_dir/docbuilder.tar.gz" -C "$temp_dir" 2>/dev/null; then
+            mcp_binary=$(find "$temp_dir" -maxdepth 1 -type f -name "docbuilder-mcp" || true)
+        fi
+    fi
+
+    if [ -z "$mcp_binary" ]; then
+        print_info "docbuilder-mcp binary not found in v${target_version} archives; skipping."
+        return 0
+    fi
+
+    sudo -E mv "$mcp_binary" "$INSTALL_DIR/docbuilder-mcp"
+    sudo -E chmod +x "$INSTALL_DIR/docbuilder-mcp"
+
+    print_info "docbuilder-mcp ready: $($INSTALL_DIR/docbuilder-mcp --version 2>/dev/null | head -n1 || echo "unknown")"
+}
+
 main() {
     update_docbuilder_if_needed
+    update_docbuilder_mcp_if_needed
     update_hugo_if_needed
 }
 
