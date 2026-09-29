@@ -38,7 +38,7 @@ Enable verbose output for docbuilder preview.
 
 ### `installMcp` (default: `false`)
 
-Also install the `docbuilder-mcp` Model Context Protocol server binary. The MCP server is bundled in the same release tarball as `docbuilder`, so enabling this option adds no extra downloads — it just installs the binary to `/usr/local/bin/docbuilder-mcp`. The MCP server is typically referenced from your MCP client config (e.g. Claude Code, Cursor) — see the [docbuilder MCP docs](https://github.com/inful/docbuilder) for client wiring.
+Also install the `docbuilder-mcp` Model Context Protocol server binary. The MCP server is shipped as its own release asset (`docbuilder-mcp_linux_<arch>.tar.gz`) starting in docbuilder v0.15.2; releases v0.14.1–v0.15.1 bundle the binary inside the main tarball. The installer handles both layouts automatically. The MCP server is typically referenced from your MCP client config (e.g. Claude Code, Cursor) — see the [docbuilder MCP docs](https://github.com/inful/docbuilder) for client wiring.
 
 ## Supported Architectures
 

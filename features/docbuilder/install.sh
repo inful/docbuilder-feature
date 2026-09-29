@@ -276,6 +276,13 @@ install_docbuilder() {
 # dev-container layer cache commonly reuses the docbuilder install across
 # rebuilds, and the early-return in install_docbuilder would otherwise skip
 # this step whenever docbuilder is already at the right version.
+#
+# Archive layout history (upstream inful/docbuilder):
+#   v0.14.1 - v0.15.1 : docbuilder-mcp is bundled inside the main tarball
+#   v0.15.2+          : docbuilder-mcp is shipped as its own tarball
+#                       (docbuilder-mcp_linux_<arch>.tar.gz)
+# We try the dedicated tarball first and fall back to extracting from the
+# main tarball so installs pinned to older versions keep working.
 install_docbuilder_mcp() {
     if [ "$INSTALL_MCP" != "true" ]; then
         return 0
@@ -300,9 +307,13 @@ install_docbuilder_mcp() {
         print_info "Resolved to version: $version"
     fi
 
-    local arch=$(detect_architecture)
-    local download_url="https://github.com/inful/docbuilder/releases/download/v${version}/docbuilder_linux_${arch}.tar.gz"
-    local temp_dir=$(mktemp -d)
+    local arch
+    arch=$(detect_architecture)
+    local mcp_tarball_url="https://github.com/inful/docbuilder/releases/download/v${version}/docbuilder-mcp_linux_${arch}.tar.gz"
+    local main_tarball_url="https://github.com/inful/docbuilder/releases/download/v${version}/docbuilder_linux_${arch}.tar.gz"
+    local temp_dir
+    temp_dir=$(mktemp -d)
+    # shellcheck disable=SC2064
     trap "rm -rf '$temp_dir'" RETURN
 
     print_info "Installing docbuilder-mcp v${version} (${arch})..."
@@ -311,25 +322,31 @@ install_docbuilder_mcp() {
         print_info "Using HTTP proxy: $HTTP_PROXY"
     fi
 
+    local mcp_binary=""
+
+    # Primary path: dedicated MCP tarball (v0.15.2+).
+    # curl's -f flag returns non-zero on HTTP errors, which short-circuits
+    # this `if` cleanly without aborting under set -e.
     # shellcheck disable=SC2086
-    if ! curl $CURL_OPTS "$download_url" -o "$temp_dir/docbuilder.tar.gz"; then
-        print_error "Failed to download docbuilder release tarball for MCP install"
-        return 1
+    if curl $CURL_OPTS "$mcp_tarball_url" -o "$temp_dir/mcp.tar.gz" 2>/dev/null \
+        && [ -s "$temp_dir/mcp.tar.gz" ] \
+        && tar -xzf "$temp_dir/mcp.tar.gz" -C "$temp_dir" 2>/dev/null; then
+        mcp_binary=$(find "$temp_dir" -maxdepth 1 -type f -name "docbuilder-mcp" || true)
     fi
 
-    if [ ! -f "$temp_dir/docbuilder.tar.gz" ] || [ ! -s "$temp_dir/docbuilder.tar.gz" ]; then
-        print_error "Downloaded tarball is missing or empty: $download_url"
-        return 1
-    fi
-
-    if ! tar -xzf "$temp_dir/docbuilder.tar.gz" -C "$temp_dir"; then
-        print_error "Failed to extract docbuilder tarball for MCP install"
-        return 1
-    fi
-
-    local mcp_binary=$(find "$temp_dir" -maxdepth 1 -type f -name "docbuilder-mcp")
+    # Fallback: extract from the main tarball (v0.14.1 - v0.15.1).
     if [ -z "$mcp_binary" ]; then
-        print_error "docbuilder-mcp binary not found in archive (requested via installMcp=true). The binary was added in docbuilder v0.14.1; upgrade docbuilderVersion or disable installMcp."
+        print_info "Dedicated MCP tarball not available for v${version}; checking main tarball..."
+        # shellcheck disable=SC2086
+        if curl $CURL_OPTS "$main_tarball_url" -o "$temp_dir/docbuilder.tar.gz" 2>/dev/null \
+            && [ -s "$temp_dir/docbuilder.tar.gz" ] \
+            && tar -xzf "$temp_dir/docbuilder.tar.gz" -C "$temp_dir" 2>/dev/null; then
+            mcp_binary=$(find "$temp_dir" -maxdepth 1 -type f -name "docbuilder-mcp" || true)
+        fi
+    fi
+
+    if [ -z "$mcp_binary" ]; then
+        print_error "docbuilder-mcp binary not available for v${version} (requested via installMcp=true). It is bundled in the main tarball for v0.14.1-v0.15.1 and shipped as its own tarball from v0.15.2 onwards; pin docbuilderVersion to a version with a release tarball (or disable installMcp)."
         return 1
     fi
 

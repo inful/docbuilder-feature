@@ -173,7 +173,7 @@ Configure proxy settings for downloading binaries:
 
 ### Install the MCP Server
 
-The `docbuilder-mcp` Model Context Protocol server is bundled in the same release tarball as the CLI. Enable it with `installMcp: true` to drop the binary at `/usr/local/bin/docbuilder-mcp`:
+The `docbuilder-mcp` Model Context Protocol server is published as its own release asset on docbuilder v0.15.2+ (`docbuilder-mcp_linux_<arch>.tar.gz`); for v0.14.1–v0.15.1 it is bundled inside the main tarball. Enable it with `installMcp: true` to drop the binary at `/usr/local/bin/docbuilder-mcp`:
 
 ```json
 {

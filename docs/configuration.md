@@ -211,7 +211,7 @@ Specifies hosts that should bypass the proxy. Common values include localhost, i
 - **Default:** `false`
 - **Description:** Install the `docbuilder-mcp` Model Context Protocol server binary alongside the CLI
 
-When enabled, the feature installs `docbuilder-mcp` to `/usr/local/bin/docbuilder-mcp` from the same release tarball as the CLI — no extra downloads are required. The binary is what MCP clients (Claude Code, Cursor, etc.) point at to expose docbuilder operations over MCP. This option is off by default because most users do not consume the MCP server.
+When enabled, the feature installs `docbuilder-mcp` to `/usr/local/bin/docbuilder-mcp`. Starting with docbuilder v0.15.2, the MCP server is shipped as its own release asset (`docbuilder-mcp_linux_<arch>.tar.gz`); older releases (v0.14.1–v0.15.1) bundle the binary inside the main tarball. The installer handles both layouts, so pinning `docbuilderVersion` to an older release continues to work — it just costs one extra download. The binary is what MCP clients (Claude Code, Cursor, etc.) point at to expose docbuilder operations over MCP. This option is off by default because most users do not consume the MCP server.
 
 **Example:**
 ```json

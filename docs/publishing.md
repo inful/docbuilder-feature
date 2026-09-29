@@ -9,7 +9,7 @@ The feature uses a dynamic download approach where binaries are fetched during c
 1. The feature code (`install.sh`, `devcontainer-feature.json`, `preview-startup.sh`, `update-on-attach.sh`) is published to the OCI registry
 2. When a devcontainer is built, `install.sh` runs and:
    - Downloads Go from the official Go distribution
-   - Downloads docbuilder from GitHub releases (optionally also extracts `docbuilder-mcp` from the same tarball when `installMcp: true`)
+   - Downloads docbuilder from GitHub releases (optionally also installs `docbuilder-mcp` when `installMcp: true` — from the dedicated `docbuilder-mcp_linux_<arch>.tar.gz` asset on v0.15.2+, falling back to extracting it from the main tarball on v0.14.1–v0.15.1)
    - Downloads Hugo Extended from GitHub releases
    - Installs binaries to `/usr/local/bin`
    - Installs `/usr/local/share/docbuilder-update.sh` (attach-time latest-version refresh)
