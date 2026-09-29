@@ -284,7 +284,9 @@ install_docbuilder() {
 # We try the dedicated tarball first and fall back to extracting from the
 # main tarball so installs pinned to older versions keep working.
 install_docbuilder_mcp() {
+    print_info "docbuilder-mcp: installMcp=${INSTALL_MCP}; INSTALLMCP_env=${INSTALLMCP:-unset}; installMcp_env=${installMcp:-unset}; INSTALL_DIR=${INSTALL_DIR}"
     if [ "$INSTALL_MCP" != "true" ]; then
+        print_info "docbuilder-mcp: skipping install (installMcp is not 'true')"
         return 0
     fi
 
