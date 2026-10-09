@@ -8,16 +8,6 @@ if [ -f "$(dirname "$0")/devcontainer-features.env" ]; then
     source "$(dirname "$0")/devcontainer-features.env"
 fi
 
-# Drop inherited SSL_CERT_FILE / CURL_CA_BUNDLE so they cannot poison
-# curl's TLS handling. Even when ensure_ca_bundle() unsets them inside
-# its function scope, every curl invocation in this script inherits the
-# parent's environment — and on libcurl + OpenSSL some Debian/Ubuntu
-# builds, SSL_CERT_FILE pointing at a non-existent path causes curl to
-# time out rather than falling back to the cert directory. See the
-# rationale block in ensure_ca_bundle() below.
-unset SSL_CERT_FILE CURL_CA_BUNDLE
-
-# Configuration
 DOCBUILDER_VERSION="${DOCBUILDERVERSION:-${docbuilderVersion:-latest}}"
 HUGO_VERSION="${HUGOVERSION:-${hugoVersion:-0.154.1}}"
 GO_VERSION="1.25.5"
@@ -107,240 +97,20 @@ check_install_dir() {
 #       OpenSSL's compiled-in defaults.
 #
 # ----------------------------------------------------------------------------
-# TLS / certificate fixup.
-#
-# We have been burned three times in a row (0.5.5, 0.5.6, 0.5.7) by
-# /etc/ssl/certs/ca-certificates.crt. The pattern is consistent: bash
-# [ -s -r ] accepts the file, but curl's SSL_CTX_load_verify_locations
-# rejects it with 'error setting certificate file: <path>' (curl exit 77).
-# The cert directory /etc/ssl/certs is always intact (installed by the
-# ca-certificates package, with each cert as a hashed .0 file).
-#
-# New strategy: do NOT trust the system bundle file at all. Build a
-# fresh CA bundle in /tmp by concatenating the hashed cert files from
-# /etc/ssl/certs. Pass that bundle to both curl (--cacert) and Node
-# (custom https.Agent with { ca: [...] }). This sidesteps whatever is
-# breaking the system bundle file.
-#
-# We also continue to:
-#   - drop inherited SSL_CERT_FILE / CURL_CA_BUNDLE (footgun on some
-#     libcurl+OpenSSL combinations).
-#   - add --capath to curl as a secondary safety net.
-# ----------------------------------------------------------------------------
-CA_BUNDLE_PATH=""   # populated by ensure_ca_bundle; consumed by node_fetch
-
-ensure_ca_bundle() {
-    local candidate
-    local capath=""
-
-    # Drop inherited env vars in the parent shell.
-    unset SSL_CERT_FILE CURL_CA_BUNDLE
-
-    # Find a CA directory (Debian/Ubuntu's /etc/ssl/certs).
-    for candidate in \
-        /etc/ssl/certs \
-        /etc/pki/tls/certs \
-        /etc/pki/ca-trust/extracted/pem ; do
-        if [ -d "$candidate" ] && [ -r "$candidate" ] \
-            && ls "$candidate"/*.0 >/dev/null 2>&1; then
-            capath="$candidate"
-            break
-        fi
-    done
-
-    # If no capath, try to install ca-certificates.
-    if [ -z "$capath" ]; then
-        print_info "No CA directory found; attempting to install ca-certificates..."
-        local pm
-        if command -v apt-get >/dev/null 2>&1; then pm=apt-get
-        elif command -v dnf >/dev/null 2>&1; then pm=dnf
-        elif command -v microdnf >/dev/null 2>&1; then pm=microdnf
-        elif command -v yum >/dev/null 2>&1; then pm=yum
-        elif command -v apk >/dev/null 2>&1; then pm=apk
-        fi
-        case "$pm" in
-            apt-get)  sudo -E apt-get update -qq >/dev/null 2>&1 || true; sudo -E apt-get install -y -qq ca-certificates >/dev/null 2>&1 || true ;;
-            dnf|yum)  sudo -E "$pm" install -y ca-certificates >/dev/null 2>&1 || true ;;
-            microdnf) sudo -E microdnf install -y ca-certificates >/dev/null 2>&1 || true ;;
-            apk)      sudo -E apk add --no-cache ca-certificates >/dev/null 2>&1 || true ;;
-        esac
-        for candidate in /etc/ssl/certs /etc/pki/tls/certs /etc/pki/ca-trust/extracted/pem ; do
-            if [ -d "$candidate" ] && [ -r "$candidate" ] \
-                && ls "$candidate"/*.0 >/dev/null 2>&1; then
-                capath="$candidate"
-                break
-            fi
-        done
-    fi
-
-    # Build a fresh CA bundle by concatenating the hashed cert files
-    # in the cert directory. Each *.0 (and *.pem) is an individual
-    # cert in PEM format. Rebuilding the bundle sidesteps whatever is
-    # breaking the system-installed bundle file.
-    if [ -n "$capath" ]; then
-        local fresh="/tmp/docbuilder-ca-bundle-$$.crt"
-        rm -f "$fresh"
-        local count=0
-        while IFS= read -r cert_file; do
-            if [ -r "$cert_file" ] \
-                && head -c 27 "$cert_file" 2>/dev/null | grep -q "BEGIN CERT"; then
-                cat "$cert_file" >> "$fresh" 2>/dev/null \
-                        && count=$((count + 1))
-                fi
-        done < <(find -L "$capath" -maxdepth 1 -type f \( -name "*.0" -o -name "*.pem" \) 2>/dev/null)
-
-        if [ -s "$fresh" ] \
-            && head -c 27 "$fresh" 2>/dev/null | grep -q "BEGIN CERT"; then
-            print_info "Built fresh CA bundle from $capath ($count certs) at $fresh"
-            CA_BUNDLE_PATH="$fresh"
-            export SSL_CERT_FILE="$fresh"
-            export CURL_CA_BUNDLE="$fresh"
-            # Pass --cacert and --capath so curl uses our rebuild even
-            # if it ignores the env vars for some reason.
-            CURL_OPTS="$CURL_OPTS --cacert $fresh --capath $capath"
-            return 0
-        fi
-        rm -f "$fresh"
-        print_info "Could not build fresh bundle from $capath"
-    fi
-
-    # Last resort: a system-installed bundle. Validate PEM framing at
-    # both ends before trusting it (this is the check that catches the
-    # broken bundle that bash [ -s ] accepts).
-    for candidate in \
-        /etc/ssl/certs/ca-certificates.crt \
-        /etc/pki/tls/certs/ca-bundle.crt \
-        /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem \
-        /etc/ssl/ca-bundle.pem \
-        /etc/ssl/cert.pem ; do
-        if [ -s "$candidate" ] && [ -r "$candidate" ] \
-            && head -c 27 "$candidate" 2>/dev/null | grep -q "BEGIN CERT" \
-            && tail -c 27 "$candidate" 2>/dev/null | grep -q "END CERT"; then
-            print_info "Using system CA bundle: $candidate"
-            CA_BUNDLE_PATH="$candidate"
-            export SSL_CERT_FILE="$candidate"
-            export CURL_CA_BUNDLE="$candidate"
-            CURL_OPTS="$CURL_OPTS --cacert $candidate"
-            if [ -n "$capath" ]; then
-                CURL_OPTS="$CURL_OPTS --capath $capath"
-            fi
-            return 0
-        fi
-    done
-
-    print_error "Could not provision a CA trust store"
-    return 1
-}
-
-
-# ----------------------------------------------------------------------------
-# HTTPS downloaders (Node-first, curl-fallback).
-#
-# On devcontainer base images that lack a working /etc/ssl/certs (or
-# have an empty / corrupted one), libcurl's TLS layer dies with
-# `error setting certificate file: <path>` (curl exit 77) — regardless
-# of how we point --cacert / --capath / the env vars.
-#
-# Node.js ships its own bundled Mozilla CA store inside the binary,
-# entirely independent of /etc/ssl/certs. So when Node is available
-# (it always is on the canonical javascript-node base image, and many
-# others), we use it for every HTTPS fetch — bypassing the system trust
-# store entirely.
-#
-# Falls back to curl (with our ensure_ca_bundle hardenings) only when
-# Node isn't installed on the base image.
-# ----------------------------------------------------------------------------
-node_fetch() {
-    local mode="$1"
-    local url="$2"
-    local dest="${3:-}"
-
-    command -v node >/dev/null 2>&1 || return 1
-
-    node --no-warnings -e '
-        const http = require("http");
-        const https = require("https");
-        const { URL } = require("url");
-        const fs = require("fs");
-        const [mode, urlStr, dest] = process.argv.slice(1);
-        // GitHub (and most REST APIs) reject requests without a User-Agent
-        // header with HTTP 403. curl sends `curl/<version>` by default;
-        // Node does not. Set one explicitly.
-        const USER_AGENT = "docbuilder-feature-installer/0.5.7";
-        const seen = new Set();
-        function follow(u) {
-            if (seen.has(u)) throw new Error("redirect loop at " + u);
-            seen.add(u);
-            const lib = u.startsWith("https") ? https : http;
-            const opts = new URL(u);
-            return new Promise((resolve, reject) => {
-                lib.get({
-                    hostname: opts.hostname,
-                    port: opts.port || (opts.protocol === "https:" ? 443 : 80),
-                    path: opts.pathname + opts.search,
-                    headers: { "User-Agent": USER_AGENT }
-                }, (res) => {
-                    if ([301,302,303,307,308].includes(res.statusCode)) {
-                        res.resume();
-                        if (!res.headers.location) return reject(new Error("missing Location"));
-                        follow(new URL(res.headers.location, u).toString()).then(resolve, reject);
-                    } else if (res.statusCode !== 200) {
-                        res.resume();
-                        reject(new Error("HTTP " + res.statusCode + " from " + u));
-                    } else {
-                        const chunks = [];
-                        res.on("data", (c) => chunks.push(c));
-                        res.on("end", () => resolve(Buffer.concat(chunks)));
-                        res.on("error", reject);
-                    }
-                }).on("error", reject);
-            });
-        }
-        (async () => {
-            try {
-                const buf = await follow(urlStr);
-                if (mode === "file") fs.writeFileSync(dest, buf);
-                else process.stdout.write(buf);
-            } catch (e) {
-                console.error(e.message);
-                process.exit(2);
-            }
-        })();
-    ' "$mode" "$url" "$dest"
-}
-
-# download <url> <dest>  -> 0 on success
+# Download helpers. Plain curl only. We inherit SSL_CERT_FILE /
+# CURL_CA_BUNDLE / NODE_EXTRA_CA_CERTS from the environment so any
+# upstream devcontainer feature that configures a corporate CA (e.g.
+# bdsoha/devcontainers' custom-root-ca) is honored as-is. We never
+# touch, unset, or replace the system trust store — that is the base
+# image's responsibility, not ours.
 download() {
-    local url="$1" dest="$2"
-    if node_fetch file "$url" "$dest"; then
-        return 0
-    fi
-    local node_err
-    node_err=$(node_fetch file "$url" "$dest" 2>&1 1>/dev/null || true)
-    if [ -n "$node_err" ]; then
-        print_info "Node downloader reported: $node_err"
-    fi
-    # Curl fallback: explicitly strip cert env vars (curl's compiled-in
-    # default bundle path on Debian is /etc/ssl/certs/ca-certificates.crt,
-    # which can be broken on stripped devcontainer bases), and don't pass
-    # --cacert. The `--capath` from CURL_OPTS still points at the cert
-    # directory (hashed certs) which is more robust than the file.
-    print_info "Falling back to curl for $url"
-    env -u SSL_CERT_FILE -u CURL_CA_BUNDLE \
-        curl $CURL_OPTS "$url" -o "$dest"
+    # shellcheck disable=SC2086
+    curl $CURL_OPTS "$1" -o "$2"
 }
 
-# fetch_text <url>  -> writes body to stdout, returns 0 on success
 fetch_text() {
-    local url="$1" captured
-    if captured=$(node_fetch text "$url"); then
-        printf '%s' "$captured"
-        return 0
-    fi
-    local rc=$?
-    print_info "Node fetch_text failed (rc=$rc) for $url; falling back to curl"
-    env -u SSL_CERT_FILE -u CURL_CA_BUNDLE \
-        curl $CURL_OPTS "$url"
+    # shellcheck disable=SC2086
+    curl -sSL "$1"
 }
 
 # Install Go (required by Hugo for module management)
@@ -784,13 +554,6 @@ main() {
     echo ""
     
     check_install_dir
-    echo ""
-
-    # Resolve a usable CA bundle before any download. Inherited SSL_CERT_FILE
-    # or CURL_CA_BUNDLE from the host may point at a path that does not exist
-    # in the container; ensure_ca_bundle() either fixes that or unsets the
-    # variables so curl can fall back to its compiled-in trust store.
-    ensure_ca_bundle
     echo ""
 
     install_go
