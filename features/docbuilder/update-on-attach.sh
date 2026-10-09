@@ -1,6 +1,13 @@
 #!/bin/bash
 set -e
 
+# Drop inherited SSL_CERT_FILE / CURL_CA_BUNDLE so they cannot poison
+# curl's TLS handling (see the long rationale in install.sh's
+# ensure_ca_bundle()). We unset here at the top level (parent shell
+# scope) because the unset inside ensure_ca_bundle() only affects the
+# function's subshell and does not propagate to subsequent curl calls.
+unset SSL_CERT_FILE CURL_CA_BUNDLE
+
 DOCBUILDER_VERSION_REQUESTED="__DOCBUILDER_VERSION_REQUESTED__"
 HUGO_VERSION_REQUESTED="__HUGO_VERSION_REQUESTED__"
 INSTALL_MCP_REQUESTED="__INSTALL_MCP_REQUESTED__"
@@ -17,15 +24,33 @@ print_info() {
 # ----------------------------------------------------------------------------
 # TLS / certificate fixup.
 #
-# Mirrors ensure_ca_bundle() in install.sh. If the host inherited
-# SSL_CERT_FILE / CURL_CA_BUNDLE pointing at a path that doesn't exist in the
-# container (or no CA bundle is installed), curl fails with
-# "error setting certificate file: <path>". Locate a usable bundle, install
-# ca-certificates if needed, and pin every subsequent curl call via --cacert.
+# Mirrors ensure_ca_bundle() in install.sh. Locates a usable trust store
+# (cert directory preferred over bundle file) and configures curl accordingly.
+# SSL_CERT_FILE / CURL_CA_BUNDLE env vars are explicitly dropped — see the
+# long-form rationale in install.sh (briefly: the env var path can silently
+# stall curl on certain curl+OpenSSL builds, and the bundle file can be
+# unreadable even when bash's [ -s -r ] test passes).
 # ----------------------------------------------------------------------------
 ensure_ca_bundle() {
     local bundle=""
+    local capath=""
     local candidate
+
+    unset SSL_CERT_FILE CURL_CA_BUNDLE
+
+    # Prefer a CA *directory* — openssl's hashed directory store is more
+    # robust than a single concatenated bundle file, which some images
+    # ship corrupt.
+    for candidate in \
+        /etc/ssl/certs \
+        /etc/pki/tls/certs \
+        /etc/pki/ca-trust/extracted/pem ; do
+        if [ -d "$candidate" ] && [ -r "$candidate" ] \
+            && ls "$candidate"/*.0 >/dev/null 2>&1; then
+            capath="$candidate"
+            break
+        fi
+    done
 
     for candidate in \
         /etc/ssl/certs/ca-certificates.crt \
@@ -33,17 +58,16 @@ ensure_ca_bundle() {
         /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem \
         /etc/ssl/ca-bundle.pem \
         /etc/ssl/cert.pem ; do
-        if [ -s "$candidate" ] && [ -r "$candidate" ]; then
+        if [ -s "$candidate" ] && [ -r "$candidate" ] \
+            && head -c 27 "$candidate" 2>/dev/null | grep -q "BEGIN CERT"; then
             bundle="$candidate"
             break
         fi
     done
 
-    # Drop any inherited pointers so they cannot poison our --cacert override.
-    unset SSL_CERT_FILE CURL_CA_BUNDLE
-
-    if [ -z "$bundle" ]; then
-        print_info "No system CA bundle found; attempting to install ca-certificates..."
+    # If we found neither, attempt to install ca-certificates.
+    if [ -z "$capath" ] && [ -z "$bundle" ]; then
+        print_info "No CA trust store found; attempting to install ca-certificates..."
         local pm
         if command -v apt-get >/dev/null 2>&1; then
             pm=apt-get
@@ -74,25 +98,44 @@ ensure_ca_bundle() {
         esac
 
         for candidate in \
+            /etc/ssl/certs \
+            /etc/pki/tls/certs \
+            /etc/pki/ca-trust/extracted/pem ; do
+            if [ -d "$candidate" ] && [ -r "$candidate" ] \
+                && ls "$candidate"/*.0 >/dev/null 2>&1; then
+                capath="$candidate"
+                break
+            fi
+        done
+
+        for candidate in \
             /etc/ssl/certs/ca-certificates.crt \
             /etc/pki/tls/certs/ca-bundle.crt \
             /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem \
             /etc/ssl/ca-bundle.pem \
             /etc/ssl/cert.pem ; do
-            if [ -s "$candidate" ] && [ -r "$candidate" ]; then
+            if [ -s "$candidate" ] && [ -r "$candidate" ] \
+                && head -c 27 "$candidate" 2>/dev/null | grep -q "BEGIN CERT"; then
                 bundle="$candidate"
                 break
             fi
         done
     fi
 
+    if [ -n "$capath" ]; then
+        print_info "Using CA directory: $capath"
+        CURL_OPTS="$CURL_OPTS --capath $capath"
+    fi
+
     if [ -n "$bundle" ]; then
-        export SSL_CERT_FILE="$bundle"
-        export CURL_CA_BUNDLE="$bundle"
-        print_info "Using CA bundle: $SSL_CERT_FILE"
-        CURL_OPTS="$CURL_OPTS --cacert $bundle"
-    else
-        print_info "Could not provision a CA bundle; SSL_CERT_FILE / CURL_CA_BUNDLE left unset"
+        print_info "Using CA bundle: $bundle"
+        if [ -z "$capath" ]; then
+            CURL_OPTS="$CURL_OPTS --cacert $bundle"
+        fi
+    fi
+
+    if [ -z "$capath" ] && [ -z "$bundle" ]; then
+        print_info "Could not provision a CA trust store; curl will rely on OpenSSL compiled-in defaults"
     fi
 }
 
