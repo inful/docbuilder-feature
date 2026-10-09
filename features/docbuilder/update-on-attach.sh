@@ -122,6 +122,35 @@ ensure_ca_bundle() {
         done
     fi
 
+    # After detecting capath (and optionally bundle), build a fresh CA
+    # bundle in /tmp by concatenating the hashed cert files. Sidesteps
+    # any tampering / corruption of the system-installed bundle file
+    # (which bit us in 0.5.5 / 0.5.6 / 0.5.7).
+    if [ -n "$capath" ]; then
+        local fresh="/tmp/docbuilder-ca-bundle-$$.crt"
+        rm -f "$fresh"
+        local count=0
+        while IFS= read -r cert_file; do
+            if [ -r "$cert_file" ] \
+                && head -c 27 "$cert_file" 2>/dev/null | grep -q "BEGIN CERT"; then
+                cat "$cert_file" >> "$fresh" 2>/dev/null \
+                    && count=$((count + 1))
+            fi
+        done < <(find -L "$capath" -maxdepth 1 -type f \( -name "*.0" -o -name "*.pem" \) 2>/dev/null)
+
+        if [ -s "$fresh" ] \
+            && head -c 27 "$fresh" 2>/dev/null | grep -q "BEGIN CERT" \
+            && tail -c 27 "$fresh" 2>/dev/null | grep -q "END CERT"; then
+            print_info "Built fresh CA bundle from $capath ($count certs) at $fresh"
+            bundle="$fresh"
+            export SSL_CERT_FILE="$fresh"
+            export CURL_CA_BUNDLE="$fresh"
+        else
+            rm -f "$fresh"
+            print_info "Could not build fresh bundle from $capath; falling back to system bundle"
+        fi
+    fi
+
     if [ -n "$capath" ]; then
         print_info "Using CA directory: $capath"
         CURL_OPTS="$CURL_OPTS --capath $capath"
@@ -129,9 +158,9 @@ ensure_ca_bundle() {
 
     if [ -n "$bundle" ]; then
         print_info "Using CA bundle: $bundle"
-        if [ -z "$capath" ]; then
-            CURL_OPTS="$CURL_OPTS --cacert $bundle"
-        fi
+        # Always pass --cacert: with the fresh bundle we just built, or
+        # the validated system bundle if that's what we have.
+        CURL_OPTS="$CURL_OPTS --cacert $bundle"
     fi
 
     if [ -z "$capath" ] && [ -z "$bundle" ]; then
@@ -202,16 +231,20 @@ download() {
     if node_fetch file "$url" "$dest"; then
         return 0
     fi
-    curl $CURL_OPTS "$url" -o "$dest"
+    print_info "Falling back to curl for $url"
+    env -u SSL_CERT_FILE -u CURL_CA_BUNDLE \
+        curl $CURL_OPTS "$url" -o "$dest"
 }
 
 fetch_text() {
     local url="$1" captured
-    if captured=$(node_fetch text "$url" 2>/dev/null); then
+    if captured=$(node_fetch text "$url"); then
         printf '%s' "$captured"
         return 0
     fi
-    curl $CURL_OPTS "$url"
+    print_info "Node fetch_text failed for $url; falling back to curl"
+    env -u SSL_CERT_FILE -u CURL_CA_BUNDLE \
+        curl $CURL_OPTS "$url"
 }
 
 detect_architecture() {

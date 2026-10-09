@@ -106,33 +106,37 @@ check_install_dir() {
 #       completes but the response never arrives) instead of using
 #       OpenSSL's compiled-in defaults.
 #
-# Strategy:
-#   1. Drop SSL_CERT_FILE and CURL_CA_BUNDLE. Do NOT re-export them; they
-#      are a known footgun (see (c)).
-#   2. Look for a CA *directory* containing hashed certs (Debian/Ubuntu's
-#      /etc/ssl/certs). If found, use --capath. The directory store is
-#      robust to corruption of any individual certificate file.
-#   3. Otherwise look for a concatenated CA bundle file. Validate that it
-#      is actually a PEM (first 27 bytes contain "BEGIN CERT") — bash's
-#      `[ -s ]` test alone isn't sufficient (see (b)).
-#   4. If neither is found, try installing ca-certificates for the
-#      container's distro (apt/dnf/microdnf/yum/apk).
-#   5. As a last resort, leave curl's SSL config alone so it falls back to
-#      OpenSSL's compiled-in defaults.
 # ----------------------------------------------------------------------------
-ensure_ca_bundle() {
-    local bundle=""
-    local capath=""
-    local candidate
+# TLS / certificate fixup.
+#
+# We have been burned three times in a row (0.5.5, 0.5.6, 0.5.7) by
+# /etc/ssl/certs/ca-certificates.crt. The pattern is consistent: bash
+# [ -s -r ] accepts the file, but curl's SSL_CTX_load_verify_locations
+# rejects it with 'error setting certificate file: <path>' (curl exit 77).
+# The cert directory /etc/ssl/certs is always intact (installed by the
+# ca-certificates package, with each cert as a hashed .0 file).
+#
+# New strategy: do NOT trust the system bundle file at all. Build a
+# fresh CA bundle in /tmp by concatenating the hashed cert files from
+# /etc/ssl/certs. Pass that bundle to both curl (--cacert) and Node
+# (custom https.Agent with { ca: [...] }). This sidesteps whatever is
+# breaking the system bundle file.
+#
+# We also continue to:
+#   - drop inherited SSL_CERT_FILE / CURL_CA_BUNDLE (footgun on some
+#     libcurl+OpenSSL combinations).
+#   - add --capath to curl as a secondary safety net.
+# ----------------------------------------------------------------------------
+CA_BUNDLE_PATH=""   # populated by ensure_ca_bundle; consumed by node_fetch
 
-    # Drop inherited env vars up-front so they cannot poison curl's TLS
-    # handling later. (See (c) — env var on certain curl/OpenSSL builds
-    # silently stalls the HTTP response.)
+ensure_ca_bundle() {
+    local candidate
+    local capath=""
+
+    # Drop inherited env vars in the parent shell.
     unset SSL_CERT_FILE CURL_CA_BUNDLE
 
-    # Prefer a CA *directory* — openssl's hashed directory store is more
-    # robust than a single concatenated bundle file, which some images
-    # ship corrupt.
+    # Find a CA directory (Debian/Ubuntu's /etc/ssl/certs).
     for candidate in \
         /etc/ssl/certs \
         /etc/pki/tls/certs \
@@ -144,9 +148,65 @@ ensure_ca_bundle() {
         fi
     done
 
-    # Look for a concatenated CA bundle file. Validate the file actually
-    # contains a PEM block — bash's `[ -s ]` test alone is not enough
-    # (see (b) above).
+    # If no capath, try to install ca-certificates.
+    if [ -z "$capath" ]; then
+        print_info "No CA directory found; attempting to install ca-certificates..."
+        local pm
+        if command -v apt-get >/dev/null 2>&1; then pm=apt-get
+        elif command -v dnf >/dev/null 2>&1; then pm=dnf
+        elif command -v microdnf >/dev/null 2>&1; then pm=microdnf
+        elif command -v yum >/dev/null 2>&1; then pm=yum
+        elif command -v apk >/dev/null 2>&1; then pm=apk
+        fi
+        case "$pm" in
+            apt-get)  sudo -E apt-get update -qq >/dev/null 2>&1 || true; sudo -E apt-get install -y -qq ca-certificates >/dev/null 2>&1 || true ;;
+            dnf|yum)  sudo -E "$pm" install -y ca-certificates >/dev/null 2>&1 || true ;;
+            microdnf) sudo -E microdnf install -y ca-certificates >/dev/null 2>&1 || true ;;
+            apk)      sudo -E apk add --no-cache ca-certificates >/dev/null 2>&1 || true ;;
+        esac
+        for candidate in /etc/ssl/certs /etc/pki/tls/certs /etc/pki/ca-trust/extracted/pem ; do
+            if [ -d "$candidate" ] && [ -r "$candidate" ] \
+                && ls "$candidate"/*.0 >/dev/null 2>&1; then
+                capath="$candidate"
+                break
+            fi
+        done
+    fi
+
+    # Build a fresh CA bundle by concatenating the hashed cert files
+    # in the cert directory. Each *.0 (and *.pem) is an individual
+    # cert in PEM format. Rebuilding the bundle sidesteps whatever is
+    # breaking the system-installed bundle file.
+    if [ -n "$capath" ]; then
+        local fresh="/tmp/docbuilder-ca-bundle-$$.crt"
+        rm -f "$fresh"
+        local count=0
+        while IFS= read -r cert_file; do
+            if [ -r "$cert_file" ] \
+                && head -c 27 "$cert_file" 2>/dev/null | grep -q "BEGIN CERT"; then
+                cat "$cert_file" >> "$fresh" 2>/dev/null \
+                        && count=$((count + 1))
+                fi
+        done < <(find -L "$capath" -maxdepth 1 -type f \( -name "*.0" -o -name "*.pem" \) 2>/dev/null)
+
+        if [ -s "$fresh" ] \
+            && head -c 27 "$fresh" 2>/dev/null | grep -q "BEGIN CERT"; then
+            print_info "Built fresh CA bundle from $capath ($count certs) at $fresh"
+            CA_BUNDLE_PATH="$fresh"
+            export SSL_CERT_FILE="$fresh"
+            export CURL_CA_BUNDLE="$fresh"
+            # Pass --cacert and --capath so curl uses our rebuild even
+            # if it ignores the env vars for some reason.
+            CURL_OPTS="$CURL_OPTS --cacert $fresh --capath $capath"
+            return 0
+        fi
+        rm -f "$fresh"
+        print_info "Could not build fresh bundle from $capath"
+    fi
+
+    # Last resort: a system-installed bundle. Validate PEM framing at
+    # both ends before trusting it (this is the check that catches the
+    # broken bundle that bash [ -s ] accepts).
     for candidate in \
         /etc/ssl/certs/ca-certificates.crt \
         /etc/pki/tls/certs/ca-bundle.crt \
@@ -154,90 +214,24 @@ ensure_ca_bundle() {
         /etc/ssl/ca-bundle.pem \
         /etc/ssl/cert.pem ; do
         if [ -s "$candidate" ] && [ -r "$candidate" ] \
-            && head -c 27 "$candidate" 2>/dev/null | grep -q "BEGIN CERT"; then
-            bundle="$candidate"
-            break
+            && head -c 27 "$candidate" 2>/dev/null | grep -q "BEGIN CERT" \
+            && tail -c 27 "$candidate" 2>/dev/null | grep -q "END CERT"; then
+            print_info "Using system CA bundle: $candidate"
+            CA_BUNDLE_PATH="$candidate"
+            export SSL_CERT_FILE="$candidate"
+            export CURL_CA_BUNDLE="$candidate"
+            CURL_OPTS="$CURL_OPTS --cacert $candidate"
+            if [ -n "$capath" ]; then
+                CURL_OPTS="$CURL_OPTS --capath $capath"
+            fi
+            return 0
         fi
     done
 
-    # If we found neither, attempt to install ca-certificates.
-    if [ -z "$capath" ] && [ -z "$bundle" ]; then
-        print_info "No CA trust store found; attempting to install ca-certificates..."
-        local pm
-        if command -v apt-get >/dev/null 2>&1; then
-            pm=apt-get
-        elif command -v dnf >/dev/null 2>&1; then
-            pm=dnf
-        elif command -v microdnf >/dev/null 2>&1; then
-            pm=microdnf
-        elif command -v yum >/dev/null 2>&1; then
-            pm=yum
-        elif command -v apk >/dev/null 2>&1; then
-            pm=apk
-        fi
-
-        case "$pm" in
-            apt-get)
-                sudo -E apt-get update -qq >/dev/null 2>&1 || true
-                sudo -E apt-get install -y -qq ca-certificates >/dev/null 2>&1 || true
-                ;;
-            dnf|yum)
-                sudo -E "$pm" install -y ca-certificates >/dev/null 2>&1 || true
-                ;;
-            microdnf)
-                sudo -E microdnf install -y ca-certificates >/dev/null 2>&1 || true
-                ;;
-            apk)
-                sudo -E apk add --no-cache ca-certificates >/dev/null 2>&1 || true
-                ;;
-        esac
-
-        # Re-scan after install.
-        for candidate in \
-            /etc/ssl/certs \
-            /etc/pki/tls/certs \
-            /etc/pki/ca-trust/extracted/pem ; do
-            if [ -d "$candidate" ] && [ -r "$candidate" ] \
-                && ls "$candidate"/*.0 >/dev/null 2>&1; then
-                capath="$candidate"
-                break
-            fi
-        done
-
-        for candidate in \
-            /etc/ssl/certs/ca-certificates.crt \
-            /etc/pki/tls/certs/ca-bundle.crt \
-            /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem \
-            /etc/ssl/ca-bundle.pem \
-            /etc/ssl/cert.pem ; do
-            if [ -s "$candidate" ] && [ -r "$candidate" ] \
-                && head -c 27 "$candidate" 2>/dev/null | grep -q "BEGIN CERT"; then
-                bundle="$candidate"
-                break
-            fi
-        done
-    fi
-
-    if [ -n "$capath" ]; then
-        print_info "Using CA directory: $capath"
-        # --capath is more robust to bundle-file corruption than --cacert.
-        CURL_OPTS="$CURL_OPTS --capath $capath"
-    fi
-
-    if [ -n "$bundle" ]; then
-        print_info "Using CA bundle: $bundle"
-        # Only pass --cacert when --capath isn't already configured;
-        # --capath overrides --cacert on libcurl+openssl, and we don't
-        # want to expose the user to the broken-bundle file path at all.
-        if [ -z "$capath" ]; then
-            CURL_OPTS="$CURL_OPTS --cacert $bundle"
-        fi
-    fi
-
-    if [ -z "$capath" ] && [ -z "$bundle" ]; then
-        print_error "Could not provision a CA trust store; curl will rely on OpenSSL compiled-in defaults"
-    fi
+    print_error "Could not provision a CA trust store"
+    return 1
 }
+
 
 # ----------------------------------------------------------------------------
 # HTTPS downloaders (Node-first, curl-fallback).
@@ -321,18 +315,32 @@ download() {
     if node_fetch file "$url" "$dest"; then
         return 0
     fi
-    # Fallback to curl with our hardened CURL_OPTS from ensure_ca_bundle.
-    curl $CURL_OPTS "$url" -o "$dest"
+    local node_err
+    node_err=$(node_fetch file "$url" "$dest" 2>&1 1>/dev/null || true)
+    if [ -n "$node_err" ]; then
+        print_info "Node downloader reported: $node_err"
+    fi
+    # Curl fallback: explicitly strip cert env vars (curl's compiled-in
+    # default bundle path on Debian is /etc/ssl/certs/ca-certificates.crt,
+    # which can be broken on stripped devcontainer bases), and don't pass
+    # --cacert. The `--capath` from CURL_OPTS still points at the cert
+    # directory (hashed certs) which is more robust than the file.
+    print_info "Falling back to curl for $url"
+    env -u SSL_CERT_FILE -u CURL_CA_BUNDLE \
+        curl $CURL_OPTS "$url" -o "$dest"
 }
 
 # fetch_text <url>  -> writes body to stdout, returns 0 on success
 fetch_text() {
     local url="$1" captured
-    if captured=$(node_fetch text "$url" 2>/dev/null); then
+    if captured=$(node_fetch text "$url"); then
         printf '%s' "$captured"
         return 0
     fi
-    curl $CURL_OPTS "$url"
+    local rc=$?
+    print_info "Node fetch_text failed (rc=$rc) for $url; falling back to curl"
+    env -u SSL_CERT_FILE -u CURL_CA_BUNDLE \
+        curl $CURL_OPTS "$url"
 }
 
 # Install Go (required by Hugo for module management)
