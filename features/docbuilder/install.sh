@@ -81,6 +81,102 @@ check_install_dir() {
     print_status "Installation directory $INSTALL_DIR exists"
 }
 
+# ----------------------------------------------------------------------------
+# TLS / certificate fixup.
+#
+# Hosts sometimes export SSL_CERT_FILE or CURL_CA_BUNDLE pointing at a path
+# that does not exist in the devcontainer (e.g. a Fedora/RHEL /etc/pki/...
+# bundle leaked from a corporate-managed laptop, or the path VS Code
+# forwarded for a corporate proxy). When curl then runs, it dies with
+# "error setting certificate file: <path>".
+#
+# This helper:
+#   1. Locates a valid CA bundle already present in the container.
+#   2. If none is found, tries to install `ca-certificates` for the
+#      container's distro (apt / dnf / microdnf / yum / apk).
+#   3. Exports the resolved path as SSL_CERT_FILE / CURL_CA_BUNDLE and
+#      appends `--cacert` to CURL_OPTS so every curl invocation uses it.
+#   4. As a last resort, unsets the inherited variables so curl can fall
+#      back to its compiled-in trust store.
+# ----------------------------------------------------------------------------
+ensure_ca_bundle() {
+    local bundle=""
+    local candidate
+
+    for candidate in \
+        /etc/ssl/certs/ca-certificates.crt \
+        /etc/pki/tls/certs/ca-bundle.crt \
+        /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem \
+        /etc/ssl/ca-bundle.pem \
+        /etc/ssl/cert.pem ; do
+        if [ -s "$candidate" ] && [ -r "$candidate" ]; then
+            bundle="$candidate"
+            break
+        fi
+    done
+
+    # If the inherited SSL_CERT_FILE/CURL_CA_BUNDLE pointed at junk,
+    # explicitly drop them so they cannot poison our --cacert override
+    # below. (We re-export a clean value moments later.)
+    unset SSL_CERT_FILE CURL_CA_BUNDLE
+
+    if [ -z "$bundle" ]; then
+        print_info "No system CA bundle found; attempting to install ca-certificates..."
+        local pm
+        if command -v apt-get >/dev/null 2>&1; then
+            pm=apt-get
+        elif command -v dnf >/dev/null 2>&1; then
+            pm=dnf
+        elif command -v microdnf >/dev/null 2>&1; then
+            pm=microdnf
+        elif command -v yum >/dev/null 2>&1; then
+            pm=yum
+        elif command -v apk >/dev/null 2>&1; then
+            pm=apk
+        fi
+
+        case "$pm" in
+            apt-get)
+                sudo -E apt-get update -qq >/dev/null 2>&1 || true
+                sudo -E apt-get install -y -qq ca-certificates >/dev/null 2>&1 || true
+                ;;
+            dnf|yum)
+                sudo -E "$pm" install -y ca-certificates >/dev/null 2>&1 || true
+                ;;
+            microdnf)
+                sudo -E microdnf install -y ca-certificates >/dev/null 2>&1 || true
+                ;;
+            apk)
+                sudo -E apk add --no-cache ca-certificates >/dev/null 2>&1 || true
+                ;;
+        esac
+
+        for candidate in \
+            /etc/ssl/certs/ca-certificates.crt \
+            /etc/pki/tls/certs/ca-bundle.crt \
+            /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem \
+            /etc/ssl/ca-bundle.pem \
+            /etc/ssl/cert.pem ; do
+            if [ -s "$candidate" ] && [ -r "$candidate" ]; then
+                bundle="$candidate"
+                break
+            fi
+        done
+    fi
+
+    if [ -n "$bundle" ]; then
+        export SSL_CERT_FILE="$bundle"
+        export CURL_CA_BUNDLE="$bundle"
+        print_info "Using CA bundle: $SSL_CERT_FILE"
+        # Append --cacert to every subsequent curl invocation. CURL_OPTS is
+        # intentionally word-split at call sites (shellcheck SC2086 is
+        # disabled throughout this file).
+        CURL_OPTS="$CURL_OPTS --cacert $bundle"
+    else
+        print_error "Could not provision a CA bundle; leaving SSL_CERT_FILE / CURL_CA_BUNDLE unset"
+    fi
+}
+
 # Install Go (required by Hugo for module management)
 install_go() {
     # Check if Go is already installed
@@ -549,7 +645,14 @@ main() {
     
     check_install_dir
     echo ""
-    
+
+    # Resolve a usable CA bundle before any download. Inherited SSL_CERT_FILE
+    # or CURL_CA_BUNDLE from the host may point at a path that does not exist
+    # in the container; ensure_ca_bundle() either fixes that or unsets the
+    # variables so curl can fall back to its compiled-in trust store.
+    ensure_ca_bundle
+    echo ""
+
     install_go
     echo ""
     

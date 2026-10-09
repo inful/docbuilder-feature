@@ -14,6 +14,88 @@ print_info() {
     echo "[docbuilder-feature] $*" >&2
 }
 
+# ----------------------------------------------------------------------------
+# TLS / certificate fixup.
+#
+# Mirrors ensure_ca_bundle() in install.sh. If the host inherited
+# SSL_CERT_FILE / CURL_CA_BUNDLE pointing at a path that doesn't exist in the
+# container (or no CA bundle is installed), curl fails with
+# "error setting certificate file: <path>". Locate a usable bundle, install
+# ca-certificates if needed, and pin every subsequent curl call via --cacert.
+# ----------------------------------------------------------------------------
+ensure_ca_bundle() {
+    local bundle=""
+    local candidate
+
+    for candidate in \
+        /etc/ssl/certs/ca-certificates.crt \
+        /etc/pki/tls/certs/ca-bundle.crt \
+        /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem \
+        /etc/ssl/ca-bundle.pem \
+        /etc/ssl/cert.pem ; do
+        if [ -s "$candidate" ] && [ -r "$candidate" ]; then
+            bundle="$candidate"
+            break
+        fi
+    done
+
+    # Drop any inherited pointers so they cannot poison our --cacert override.
+    unset SSL_CERT_FILE CURL_CA_BUNDLE
+
+    if [ -z "$bundle" ]; then
+        print_info "No system CA bundle found; attempting to install ca-certificates..."
+        local pm
+        if command -v apt-get >/dev/null 2>&1; then
+            pm=apt-get
+        elif command -v dnf >/dev/null 2>&1; then
+            pm=dnf
+        elif command -v microdnf >/dev/null 2>&1; then
+            pm=microdnf
+        elif command -v yum >/dev/null 2>&1; then
+            pm=yum
+        elif command -v apk >/dev/null 2>&1; then
+            pm=apk
+        fi
+
+        case "$pm" in
+            apt-get)
+                sudo -E apt-get update -qq >/dev/null 2>&1 || true
+                sudo -E apt-get install -y -qq ca-certificates >/dev/null 2>&1 || true
+                ;;
+            dnf|yum)
+                sudo -E "$pm" install -y ca-certificates >/dev/null 2>&1 || true
+                ;;
+            microdnf)
+                sudo -E microdnf install -y ca-certificates >/dev/null 2>&1 || true
+                ;;
+            apk)
+                sudo -E apk add --no-cache ca-certificates >/dev/null 2>&1 || true
+                ;;
+        esac
+
+        for candidate in \
+            /etc/ssl/certs/ca-certificates.crt \
+            /etc/pki/tls/certs/ca-bundle.crt \
+            /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem \
+            /etc/ssl/ca-bundle.pem \
+            /etc/ssl/cert.pem ; do
+            if [ -s "$candidate" ] && [ -r "$candidate" ]; then
+                bundle="$candidate"
+                break
+            fi
+        done
+    fi
+
+    if [ -n "$bundle" ]; then
+        export SSL_CERT_FILE="$bundle"
+        export CURL_CA_BUNDLE="$bundle"
+        print_info "Using CA bundle: $SSL_CERT_FILE"
+        CURL_OPTS="$CURL_OPTS --cacert $bundle"
+    else
+        print_info "Could not provision a CA bundle; SSL_CERT_FILE / CURL_CA_BUNDLE left unset"
+    fi
+}
+
 detect_architecture() {
     local arch
     arch=$(uname -m)
@@ -238,6 +320,9 @@ update_docbuilder_mcp_if_needed() {
 }
 
 main() {
+    # Resolve a usable CA bundle before any download. Host env vars that
+    # point at nonexistent paths would otherwise break every curl call.
+    ensure_ca_bundle
     update_docbuilder_if_needed
     update_docbuilder_mcp_if_needed
     update_hugo_if_needed
