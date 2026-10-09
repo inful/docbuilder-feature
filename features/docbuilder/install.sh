@@ -239,6 +239,102 @@ ensure_ca_bundle() {
     fi
 }
 
+# ----------------------------------------------------------------------------
+# HTTPS downloaders (Node-first, curl-fallback).
+#
+# On devcontainer base images that lack a working /etc/ssl/certs (or
+# have an empty / corrupted one), libcurl's TLS layer dies with
+# `error setting certificate file: <path>` (curl exit 77) — regardless
+# of how we point --cacert / --capath / the env vars.
+#
+# Node.js ships its own bundled Mozilla CA store inside the binary,
+# entirely independent of /etc/ssl/certs. So when Node is available
+# (it always is on the canonical javascript-node base image, and many
+# others), we use it for every HTTPS fetch — bypassing the system trust
+# store entirely.
+#
+# Falls back to curl (with our ensure_ca_bundle hardenings) only when
+# Node isn't installed on the base image.
+# ----------------------------------------------------------------------------
+node_fetch() {
+    local mode="$1"
+    local url="$2"
+    local dest="${3:-}"
+
+    command -v node >/dev/null 2>&1 || return 1
+
+    node --no-warnings -e '
+        const http = require("http");
+        const https = require("https");
+        const { URL } = require("url");
+        const fs = require("fs");
+        const [mode, urlStr, dest] = process.argv.slice(1);
+        // GitHub (and most REST APIs) reject requests without a User-Agent
+        // header with HTTP 403. curl sends `curl/<version>` by default;
+        // Node does not. Set one explicitly.
+        const USER_AGENT = "docbuilder-feature-installer/0.5.7";
+        const seen = new Set();
+        function follow(u) {
+            if (seen.has(u)) throw new Error("redirect loop at " + u);
+            seen.add(u);
+            const lib = u.startsWith("https") ? https : http;
+            const opts = new URL(u);
+            return new Promise((resolve, reject) => {
+                lib.get({
+                    hostname: opts.hostname,
+                    port: opts.port || (opts.protocol === "https:" ? 443 : 80),
+                    path: opts.pathname + opts.search,
+                    headers: { "User-Agent": USER_AGENT }
+                }, (res) => {
+                    if ([301,302,303,307,308].includes(res.statusCode)) {
+                        res.resume();
+                        if (!res.headers.location) return reject(new Error("missing Location"));
+                        follow(new URL(res.headers.location, u).toString()).then(resolve, reject);
+                    } else if (res.statusCode !== 200) {
+                        res.resume();
+                        reject(new Error("HTTP " + res.statusCode + " from " + u));
+                    } else {
+                        const chunks = [];
+                        res.on("data", (c) => chunks.push(c));
+                        res.on("end", () => resolve(Buffer.concat(chunks)));
+                        res.on("error", reject);
+                    }
+                }).on("error", reject);
+            });
+        }
+        (async () => {
+            try {
+                const buf = await follow(urlStr);
+                if (mode === "file") fs.writeFileSync(dest, buf);
+                else process.stdout.write(buf);
+            } catch (e) {
+                console.error(e.message);
+                process.exit(2);
+            }
+        })();
+    ' "$mode" "$url" "$dest"
+}
+
+# download <url> <dest>  -> 0 on success
+download() {
+    local url="$1" dest="$2"
+    if node_fetch file "$url" "$dest"; then
+        return 0
+    fi
+    # Fallback to curl with our hardened CURL_OPTS from ensure_ca_bundle.
+    curl $CURL_OPTS "$url" -o "$dest"
+}
+
+# fetch_text <url>  -> writes body to stdout, returns 0 on success
+fetch_text() {
+    local url="$1" captured
+    if captured=$(node_fetch text "$url" 2>/dev/null); then
+        printf '%s' "$captured"
+        return 0
+    fi
+    curl $CURL_OPTS "$url"
+}
+
 # Install Go (required by Hugo for module management)
 install_go() {
     # Check if Go is already installed
@@ -266,8 +362,7 @@ install_go() {
     
     while [ $attempt -le $max_attempts ]; do
         print_info "Download attempt $attempt of $max_attempts..."
-        # shellcheck disable=SC2086
-        if curl $CURL_OPTS "$download_url" -o "$temp_dir/go.tar.gz" 2>"$temp_dir/curl_error.log"; then
+        if download "$download_url" "$temp_dir/go.tar.gz"; then
             if [ -f "$temp_dir/go.tar.gz" ] && [ -s "$temp_dir/go.tar.gz" ]; then
                 print_status "Downloaded Go"
                 break
@@ -318,8 +413,7 @@ install_docbuilder() {
     # Resolve "latest" to actual version number
     if [ "$version" = "latest" ]; then
         print_info "Resolving 'latest' version for docbuilder..."
-        # shellcheck disable=SC2086
-        version=$(curl $CURL_OPTS "https://api.github.com/repos/inful/docbuilder/releases/latest" | grep -oP '"tag_name":\s*"v?\K[0-9.]+' || echo "")
+        version=$(fetch_text "https://api.github.com/repos/inful/docbuilder/releases/latest" | grep -oP '"tag_name":\s*"v?\K[0-9.]+' || echo "")
         if [ -z "$version" ]; then
             print_error "Failed to resolve 'latest' version for docbuilder"
             return 1
@@ -363,10 +457,7 @@ install_docbuilder() {
     
     while [ $attempt -le $max_attempts ]; do
         print_info "Download attempt $attempt of $max_attempts..."
-        print_info "Environment: http_proxy='$http_proxy' https_proxy='$https_proxy' no_proxy='$NO_PROXY'"
-        print_info "Curl command: curl $CURL_OPTS \"$download_url\" -o \"$temp_dir/docbuilder.tar.gz\""
-        # shellcheck disable=SC2086
-        if curl $CURL_OPTS -v "$download_url" -o "$temp_dir/docbuilder.tar.gz" 2>"$temp_dir/curl_error.log"; then
+        if download "$download_url" "$temp_dir/docbuilder.tar.gz"; then
             if [ -f "$temp_dir/docbuilder.tar.gz" ] && [ -s "$temp_dir/docbuilder.tar.gz" ]; then
                 print_status "Downloaded docbuilder"
                 break
@@ -374,13 +465,6 @@ install_docbuilder() {
                 print_error "Download succeeded but file is missing or empty"
                 print_error "File exists: $([ -f "$temp_dir/docbuilder.tar.gz" ] && echo yes || echo no)"
                 print_error "File size: $([ -f "$temp_dir/docbuilder.tar.gz" ] && stat -f%z "$temp_dir/docbuilder.tar.gz" 2>/dev/null || stat -c%s "$temp_dir/docbuilder.tar.gz" 2>/dev/null || echo unknown)"
-            fi
-        else
-            local exit_code=$?
-            print_error "Curl failed with exit code $exit_code"
-            if [ -f "$temp_dir/curl_error.log" ]; then
-                print_error "Curl error output:"
-                cat "$temp_dir/curl_error.log" >&2
             fi
         fi
         attempt=$((attempt + 1))
@@ -458,8 +542,7 @@ install_docbuilder_mcp() {
     # Resolve "latest" to actual version number
     if [ "$version" = "latest" ]; then
         print_info "Resolving 'latest' version for docbuilder-mcp..."
-        # shellcheck disable=SC2086
-        version=$(curl $CURL_OPTS "https://api.github.com/repos/inful/docbuilder/releases/latest" | grep -oP '"tag_name":\s*"v?\K[0-9.]+' || echo "")
+        version=$(fetch_text "https://api.github.com/repos/inful/docbuilder/releases/latest" | grep -oP '"tag_name":\s*"v?\K[0-9.]+' || echo "")
         if [ -z "$version" ]; then
             print_error "Failed to resolve 'latest' version for docbuilder-mcp"
             return 1
@@ -485,10 +568,9 @@ install_docbuilder_mcp() {
     local mcp_binary=""
 
     # Primary path: dedicated MCP tarball (v0.15.2+).
-    # curl's -f flag returns non-zero on HTTP errors, which short-circuits
-    # this `if` cleanly without aborting under set -e.
-    # shellcheck disable=SC2086
-    if curl $CURL_OPTS "$mcp_tarball_url" -o "$temp_dir/mcp.tar.gz" 2>/dev/null \
+    # download() returns non-zero on HTTP errors / network failure, which
+    # short-circuits this `if` cleanly under set -e.
+    if download "$mcp_tarball_url" "$temp_dir/mcp.tar.gz" \
         && [ -s "$temp_dir/mcp.tar.gz" ] \
         && tar -xzf "$temp_dir/mcp.tar.gz" -C "$temp_dir" 2>/dev/null; then
         mcp_binary=$(find "$temp_dir" -maxdepth 1 -type f -name "docbuilder-mcp" || true)
@@ -497,8 +579,7 @@ install_docbuilder_mcp() {
     # Fallback: extract from the main tarball (v0.14.1 - v0.15.1).
     if [ -z "$mcp_binary" ]; then
         print_info "Dedicated MCP tarball not available for v${version}; checking main tarball..."
-        # shellcheck disable=SC2086
-        if curl $CURL_OPTS "$main_tarball_url" -o "$temp_dir/docbuilder.tar.gz" 2>/dev/null \
+        if download "$main_tarball_url" "$temp_dir/docbuilder.tar.gz" \
             && [ -s "$temp_dir/docbuilder.tar.gz" ] \
             && tar -xzf "$temp_dir/docbuilder.tar.gz" -C "$temp_dir" 2>/dev/null; then
             mcp_binary=$(find "$temp_dir" -maxdepth 1 -type f -name "docbuilder-mcp" || true)
@@ -535,8 +616,7 @@ install_hugo() {
     # Resolve "latest" to actual version number
     if [ "$version" = "latest" ]; then
         print_info "Resolving 'latest' version for hugo..."
-        # shellcheck disable=SC2086
-        version=$(curl $CURL_OPTS "https://api.github.com/repos/gohugoio/hugo/releases/latest" | grep -oP '"tag_name":\s*"v?\K[0-9.]+' || echo "")
+        version=$(fetch_text "https://api.github.com/repos/gohugoio/hugo/releases/latest" | grep -oP '"tag_name":\s*"v?\K[0-9.]+' || echo "")
         if [ -z "$version" ]; then
             print_error "Failed to resolve 'latest' version for hugo"
             return 1
@@ -585,10 +665,7 @@ install_hugo() {
     
     while [ $attempt -le $max_attempts ]; do
         print_info "Download attempt $attempt of $max_attempts..."
-        print_info "Environment: http_proxy='$http_proxy' https_proxy='$https_proxy' no_proxy='$NO_PROXY'"
-        print_info "Curl command: curl $CURL_OPTS \"$download_url\" -o \"$temp_dir/hugo.tar.gz\""
-        # shellcheck disable=SC2086
-        if curl $CURL_OPTS -v "$download_url" -o "$temp_dir/hugo.tar.gz" 2>"$temp_dir/curl_error.log"; then
+        if download "$download_url" "$temp_dir/hugo.tar.gz"; then
             if [ -f "$temp_dir/hugo.tar.gz" ] && [ -s "$temp_dir/hugo.tar.gz" ]; then
                 print_status "Downloaded hugo"
                 break
@@ -596,13 +673,6 @@ install_hugo() {
                 print_error "Download succeeded but file is missing or empty"
                 print_error "File exists: $([ -f "$temp_dir/hugo.tar.gz" ] && echo yes || echo no)"
                 print_error "File size: $([ -f "$temp_dir/hugo.tar.gz" ] && stat -f%z "$temp_dir/hugo.tar.gz" 2>/dev/null || stat -c%s "$temp_dir/hugo.tar.gz" 2>/dev/null || echo unknown)"
-            fi
-        else
-            local exit_code=$?
-            print_error "Curl failed with exit code $exit_code"
-            if [ -f "$temp_dir/curl_error.log" ]; then
-                print_error "Curl error output:"
-                cat "$temp_dir/curl_error.log" >&2
             fi
         fi
         attempt=$((attempt + 1))

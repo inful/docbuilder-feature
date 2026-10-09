@@ -139,6 +139,81 @@ ensure_ca_bundle() {
     fi
 }
 
+# ----------------------------------------------------------------------------
+# HTTPS downloaders (Node-first, curl-fallback).
+# Mirrors install.sh. Node bundles its own Mozilla CA store, immune to
+# /etc/ssl/certs issues in stripped base images.
+# ----------------------------------------------------------------------------
+node_fetch() {
+    local mode="$1"
+    local url="$2"
+    local dest="${3:-}"
+
+    command -v node >/dev/null 2>&1 || return 1
+
+    node --no-warnings -e '
+        const http = require("http");
+        const https = require("https");
+        const { URL } = require("url");
+        const fs = require("fs");
+        const [mode, urlStr, dest] = process.argv.slice(1);
+        // GitHub (and most REST APIs) reject requests without a User-Agent
+        // header with HTTP 403. curl sends `curl/<version>` by default;
+        // Node does not. Set one explicitly.
+        const USER_AGENT = "docbuilder-feature-installer/0.5.7";
+        const seen = new Set();
+        function follow(u) {
+            if (seen.has(u)) throw new Error("redirect loop at " + u);
+            seen.add(u);
+            const lib = u.startsWith("https") ? https : http;
+            return new Promise((resolve, reject) => {
+                lib.get(u, (res) => {
+                    if ([301,302,303,307,308].includes(res.statusCode)) {
+                        res.resume();
+                        if (!res.headers.location) return reject(new Error("missing Location"));
+                        follow(new URL(res.headers.location, u).toString()).then(resolve, reject);
+                    } else if (res.statusCode !== 200) {
+                        res.resume();
+                        reject(new Error("HTTP " + res.statusCode + " from " + u));
+                    } else {
+                        const chunks = [];
+                        res.on("data", (c) => chunks.push(c));
+                        res.on("end", () => resolve(Buffer.concat(chunks)));
+                        res.on("error", reject);
+                    }
+                }).on("error", reject);
+            });
+        }
+        (async () => {
+            try {
+                const buf = await follow(urlStr);
+                if (mode === "file") fs.writeFileSync(dest, buf);
+                else process.stdout.write(buf);
+            } catch (e) {
+                console.error(e.message);
+                process.exit(2);
+            }
+        })();
+    ' "$mode" "$url" "$dest"
+}
+
+download() {
+    local url="$1" dest="$2"
+    if node_fetch file "$url" "$dest"; then
+        return 0
+    fi
+    curl $CURL_OPTS "$url" -o "$dest"
+}
+
+fetch_text() {
+    local url="$1" captured
+    if captured=$(node_fetch text "$url" 2>/dev/null); then
+        printf '%s' "$captured"
+        return 0
+    fi
+    curl $CURL_OPTS "$url"
+}
+
 detect_architecture() {
     local arch
     arch=$(uname -m)
@@ -157,14 +232,12 @@ detect_architecture() {
 }
 
 resolve_latest_docbuilder() {
-    # shellcheck disable=SC2086
-    curl $CURL_OPTS "https://api.github.com/repos/inful/docbuilder/releases/latest" \
+    fetch_text "https://api.github.com/repos/inful/docbuilder/releases/latest" \
         | grep -oP '"tag_name":\s*"v?\K[0-9.]+'
 }
 
 resolve_latest_hugo() {
-    # shellcheck disable=SC2086
-    curl $CURL_OPTS "https://api.github.com/repos/gohugoio/hugo/releases/latest" \
+    fetch_text "https://api.github.com/repos/gohugoio/hugo/releases/latest" \
         | grep -oP '"tag_name":\s*"v?\K[0-9.]+'
 }
 
@@ -223,8 +296,7 @@ update_docbuilder_if_needed() {
 
     local url
     url="https://github.com/inful/docbuilder/releases/download/v${latest}/docbuilder_linux_${arch}.tar.gz"
-    # shellcheck disable=SC2086
-    curl $CURL_OPTS "$url" -o "$temp_dir/docbuilder.tar.gz"
+    download "$url" "$temp_dir/docbuilder.tar.gz"
     tar -xzf "$temp_dir/docbuilder.tar.gz" -C "$temp_dir"
 
     local binary
@@ -271,8 +343,7 @@ update_hugo_if_needed() {
 
     local url
     url="https://github.com/gohugoio/hugo/releases/download/v${latest}/hugo_extended_${latest}_linux-${arch}.tar.gz"
-    # shellcheck disable=SC2086
-    curl $CURL_OPTS "$url" -o "$temp_dir/hugo.tar.gz"
+    download "$url" "$temp_dir/hugo.tar.gz"
     tar -xzf "$temp_dir/hugo.tar.gz" -C "$temp_dir"
 
     if [ ! -f "$temp_dir/hugo" ]; then
@@ -336,7 +407,7 @@ update_docbuilder_mcp_if_needed() {
     local mcp_binary=""
 
     # Primary path: dedicated MCP tarball (v0.15.2+).
-    if curl $CURL_OPTS "$mcp_url" -o "$temp_dir/mcp.tar.gz" 2>/dev/null \
+    if download "$mcp_url" "$temp_dir/mcp.tar.gz" \
         && [ -s "$temp_dir/mcp.tar.gz" ] \
         && tar -xzf "$temp_dir/mcp.tar.gz" -C "$temp_dir" 2>/dev/null; then
         mcp_binary=$(find "$temp_dir" -maxdepth 1 -type f -name "docbuilder-mcp" || true)
@@ -344,7 +415,7 @@ update_docbuilder_mcp_if_needed() {
 
     # Fallback: extract from the main tarball (v0.14.1 - v0.15.1).
     if [ -z "$mcp_binary" ]; then
-        if curl $CURL_OPTS "$main_url" -o "$temp_dir/docbuilder.tar.gz" 2>/dev/null \
+        if download "$main_url" "$temp_dir/docbuilder.tar.gz" \
             && [ -s "$temp_dir/docbuilder.tar.gz" ] \
             && tar -xzf "$temp_dir/docbuilder.tar.gz" -C "$temp_dir" 2>/dev/null; then
             mcp_binary=$(find "$temp_dir" -maxdepth 1 -type f -name "docbuilder-mcp" || true)
